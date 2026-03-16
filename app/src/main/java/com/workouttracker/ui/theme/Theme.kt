@@ -1,56 +1,54 @@
 package com.workouttracker.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF80CBC4),
-    secondary = Color(0xFF4DB6AC),
-    tertiary = Color(0xFF80DEEA)
-)
+val ColorBackground = Color(0xFF0F0F0F)
+val ColorSurface = Color(0xFF1C1C1E)
+val ColorSurfaceVariant = Color(0xFF2C2C2E)
+val ColorPrimary = Color(0xFF6C63FF)
+val ColorSecondary = Color(0xFF30D158)
+val ColorError = Color(0xFFFF453A)
+val ColorOnBackground = Color(0xFFE5E5EA)
+val ColorOnSurface = Color(0xFFAEAEB2)
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF00796B),
-    secondary = Color(0xFF009688),
-    tertiary = Color(0xFF0097A7)
+private val AppDarkColorScheme = darkColorScheme(
+    primary = ColorPrimary,
+    onPrimary = Color.White,
+    secondary = ColorSecondary,
+    onSecondary = Color.White,
+    error = ColorError,
+    onError = Color.White,
+    background = ColorBackground,
+    onBackground = ColorOnBackground,
+    surface = ColorSurface,
+    onSurface = ColorOnBackground,
+    surfaceVariant = ColorSurfaceVariant,
+    onSurfaceVariant = ColorOnSurface,
+    outline = ColorSurfaceVariant
 )
 
 @Composable
 fun WorkoutTrackerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context)
-            else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.statusBarColor = ColorBackground.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = AppDarkColorScheme,
         content = content
     )
 }
