@@ -35,23 +35,12 @@ fun BodyTrackerScreen(
 
     val sdf = remember { SimpleDateFormat("d MMM yyyy", Locale("ru")) }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = ColorPrimary
-            ) {
-                Icon(Icons.Default.Add, "Добавить замер", tint = ColorOnBackground)
-            }
-        },
-        containerColor = ColorBackground
-    ) { padding ->
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(vertical = 20.dp),
+            contentPadding = PaddingValues(vertical = 20.dp, horizontal = 0.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -87,6 +76,17 @@ fun BodyTrackerScreen(
                     onDelete = { viewModel.delete(item.measurement) }
                 )
             }
+        }
+
+        // FAB at bottom right
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            containerColor = ColorPrimary,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp)
+        ) {
+            Icon(Icons.Default.Add, "Добавить замер", tint = ColorOnBackground)
         }
     }
 
