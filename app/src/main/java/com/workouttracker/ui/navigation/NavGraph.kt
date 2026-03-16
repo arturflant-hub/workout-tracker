@@ -73,7 +73,7 @@ fun WorkoutNavGraph(navController: NavHostController) {
                     contentColor = ColorOnSurface
                 ) {
                     bottomNavItems.forEach { item ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                        val selected = currentDestination?.route == item.route
                         NavigationBarItem(
                             icon = {
                                 Icon(
@@ -85,7 +85,7 @@ fun WorkoutNavGraph(navController: NavHostController) {
                             selected = selected,
                             onClick = {
                                 navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
+                                    popUpTo(BottomNavScreen.Dashboard.route) {
                                         saveState = true
                                     }
                                     launchSingleTop = true
