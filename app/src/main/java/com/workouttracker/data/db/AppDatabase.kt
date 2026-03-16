@@ -4,6 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.workouttracker.data.db.dao.*
 import com.workouttracker.data.db.entities.*
 
@@ -12,7 +14,28 @@ class Converters {
     fun fromSessionStatus(status: SessionStatus): String = status.name
 
     @TypeConverter
-    fun toSessionStatus(value: String): SessionStatus = SessionStatus.valueOf(value)
+    fun toSessionStatus(value: String): SessionStatus =
+        try { SessionStatus.valueOf(value) } catch (e: IllegalArgumentException) { SessionStatus.PLANNED }
+}
+
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS body_measurements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                date INTEGER NOT NULL,
+                weight REAL NOT NULL,
+                chest REAL,
+                waist REAL,
+                hips REAL,
+                thigh REAL,
+                arm REAL,
+                neck REAL,
+                height REAL NOT NULL,
+                age INTEGER
+            )
+        """.trimIndent())
+    }
 }
 
 @Database(
@@ -24,9 +47,10 @@ class Converters {
         WeekPattern::class,
         WorkoutSession::class,
         WorkoutSessionExercise::class,
-        WorkoutSetFact::class
+        WorkoutSetFact::class,
+        BodyMeasurement::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,4 +63,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutSessionExerciseDao(): WorkoutSessionExerciseDao
     abstract fun workoutSetFactDao(): WorkoutSetFactDao
+    abstract fun bodyMeasurementDao(): BodyMeasurementDao
 }

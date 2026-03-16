@@ -3,6 +3,7 @@ package com.workouttracker.di
 import android.content.Context
 import androidx.room.Room
 import com.workouttracker.data.db.AppDatabase
+import com.workouttracker.data.db.MIGRATION_1_2
 import com.workouttracker.data.db.dao.*
 import dagger.Module
 import dagger.Provides
@@ -22,7 +23,9 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "workout_tracker.db"
-        ).build()
+        )
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideUserDao(db: AppDatabase): UserDao = db.userDao()
@@ -48,4 +51,7 @@ object AppModule {
 
     @Provides
     fun provideWorkoutSetFactDao(db: AppDatabase): WorkoutSetFactDao = db.workoutSetFactDao()
+
+    @Provides
+    fun provideBodyMeasurementDao(db: AppDatabase): BodyMeasurementDao = db.bodyMeasurementDao()
 }

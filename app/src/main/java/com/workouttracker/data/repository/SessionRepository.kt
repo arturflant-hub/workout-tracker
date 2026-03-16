@@ -21,6 +21,9 @@ class SessionRepository @Inject constructor(
     fun getExercisesBySession(sessionId: Long): Flow<List<WorkoutSessionExercise>> =
         exerciseDao.getExercisesBySession(sessionId)
 
+    suspend fun getExercisesBySessionOnce(sessionId: Long): List<WorkoutSessionExercise> =
+        exerciseDao.getExercisesBySessionOnce(sessionId)
+
     fun getSetsByExercise(exerciseId: Long): Flow<List<WorkoutSetFact>> =
         setFactDao.getSetsByExercise(exerciseId)
 
@@ -63,6 +66,11 @@ class SessionRepository @Inject constructor(
 
         return SessionSummary(session, exerciseSummaries)
     }
+
+    fun getAllSessions(): Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
+
+    suspend fun startSession(sessionId: Long) =
+        sessionDao.updateStatus(sessionId, SessionStatus.IN_PROGRESS)
 
     suspend fun getHistoryByProgramExercise(programExerciseId: Long): List<WorkoutSessionExercise> =
         exerciseDao.getHistoryByProgramExercise(programExerciseId)

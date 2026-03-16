@@ -3,7 +3,7 @@ package com.workouttracker.data.db.entities
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-enum class SessionStatus { PLANNED, DONE, SKIPPED }
+enum class SessionStatus { PLANNED, IN_PROGRESS, DONE, SKIPPED }
 
 @Entity(tableName = "workout_sessions")
 data class WorkoutSession(
