@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -118,7 +118,7 @@ fun PlannedWorkoutScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад", tint = ColorOnBackground)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = ColorOnBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ColorBackground)
@@ -200,8 +200,6 @@ fun PlannedExerciseCard(item: PlannedExerciseItem) {
                     RecommendationType.INCREASE_REPS -> "👍 РАБОТАТЬ НА ПОВТОРЕНИЯ" to ColorPrimary
                     RecommendationType.SLOW_NEGATIVE -> "⚠ ЗАМЕДЛИТЬ НЕГАТИВ" to ColorOnSurface
                     RecommendationType.ADD_PAUSE -> "⚠ ДОБАВИТЬ ПАУЗУ" to ColorOnSurface
-                    // no more types currently
-                    else -> "ℹ СОВЕТ" to ColorOnSurface
                 }
                 Text(
                     icon,

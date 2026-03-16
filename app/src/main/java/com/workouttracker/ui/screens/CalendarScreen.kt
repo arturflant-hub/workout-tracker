@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,7 +53,7 @@ fun CalendarScreen(
                 title = { Text("Календарь: $weekText") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
                     }
                 },
                 actions = {
@@ -178,11 +179,13 @@ fun SessionCard(session: WorkoutSession, onClick: () -> Unit) {
         SessionStatus.DONE -> MaterialTheme.colorScheme.primary
         SessionStatus.SKIPPED -> MaterialTheme.colorScheme.error
         SessionStatus.PLANNED -> MaterialTheme.colorScheme.secondary
+        SessionStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary
     }
     val statusText = when (session.status) {
         SessionStatus.DONE -> "✅ Выполнено"
         SessionStatus.SKIPPED -> "⏭ Пропущено"
         SessionStatus.PLANNED -> "📅 Запланировано"
+        SessionStatus.IN_PROGRESS -> "🏋 В процессе"
     }
 
     Card(

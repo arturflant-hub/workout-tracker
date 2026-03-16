@@ -99,8 +99,8 @@ class DashboardViewModel @Inject constructor(
                     latest.weight - first.weight else null
                 val waistChange = if (latest?.waist != null && first?.waist != null && latest.id != first.id)
                     latest.waist - first.waist else null
-                val bodyFat = if (latest?.waist != null && latest.neck != null)
-                    calcBodyFatNavy(latest.waist!!, latest.neck!!, latest.height) else null
+                val bodyFat = if (latest != null && latest.waist != null && latest.neck != null)
+                    calcBodyFatNavy(latest.waist, latest.neck, latest.height) else null
 
                 _state.value = DashboardState(
                     nextSession = nextSession,
