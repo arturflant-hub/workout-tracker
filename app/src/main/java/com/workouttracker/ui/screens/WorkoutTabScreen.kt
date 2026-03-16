@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +43,13 @@ class WorkoutTabViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(WorkoutTabState())
     val state: StateFlow<WorkoutTabState> = _state.asStateFlow()
+
+    fun createQuickSession(programType: String, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val sessionId = scheduleRepository.createQuickSession(programType)
+            onCreated(sessionId)
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -86,8 +94,75 @@ fun WorkoutTabScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val sdf = remember { SimpleDateFormat("EEE, d MMM", Locale("ru")) }
+    var showProgramDialog by remember { mutableStateOf(false) }
 
+    // Dialog to pick program A or B
+    if (showProgramDialog) {
+        AlertDialog(
+            onDismissRequest = { showProgramDialog = false },
+            containerColor = ColorSurface,
+            title = {
+                Text("Начать тренировку", color = ColorOnBackground, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Выбери программу на сегодня:", color = ColorOnSurface)
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showProgramDialog = false
+                            viewModel.createQuickSession("A") { sessionId ->
+                                navController.navigate(Screen.ActiveWorkout.createRoute(sessionId))
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary)
+                    ) { Text("Программа A") }
+                    Button(
+                        onClick = {
+                            showProgramDialog = false
+                            viewModel.createQuickSession("B") { sessionId ->
+                                navController.navigate(Screen.ActiveWorkout.createRoute(sessionId))
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary)
+                    ) { Text("Программа B") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProgramDialog = false }) {
+                    Text("Отмена", color = ColorOnSurface)
+                }
+            }
+        )
+    }
+
+    Scaffold(
+        containerColor = ColorBackground,
+        floatingActionButton = {
+            if (state.activeSession == null && state.todaySession?.status != SessionStatus.IN_PROGRESS) {
+                FloatingActionButton(
+                    onClick = {
+                        val today = state.todaySession
+                        if (today != null && today.status == SessionStatus.PLANNED) {
+                            navController.navigate(Screen.ActiveWorkout.createRoute(today.id))
+                        } else {
+                            showProgramDialog = true
+                        }
+                    },
+                    containerColor = ColorPrimary,
+                    contentColor = ColorOnBackground
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Начать тренировку")
+                }
+            }
+        }
+    ) { scaffoldPadding ->
     LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(scaffoldPadding)
+            .padding(horizontal = 20.dp),
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
@@ -259,5 +334,6 @@ fun WorkoutTabScreen(
                 }
             }
         }
-    }
+    } // end LazyColumn
+    } // end Scaffold
 }

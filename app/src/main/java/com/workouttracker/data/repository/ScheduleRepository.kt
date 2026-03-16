@@ -126,4 +126,42 @@ class ScheduleRepository @Inject constructor(
     }
 
     fun getAllSessions(): Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
+
+    suspend fun createQuickSession(programType: String): Long {
+        val today = startOfDay(System.currentTimeMillis())
+        // Check if session for today already exists
+        val existing = sessionDao.getSessionByDate(today)
+        if (existing != null) return existing.id
+
+        val session = WorkoutSession(
+            date = today,
+            programType = programType,
+            status = SessionStatus.PLANNED
+        )
+        val sessionId = sessionDao.insertSession(session)
+
+        // Copy exercises from program
+        val program = programRepository.getProgramByType(programType) ?: return sessionId
+        val exercises = mutableListOf<WorkoutSessionExercise>()
+
+        programRepository.getExercisesByProgram(program.id).collect { list ->
+            list.forEach { pe ->
+                exercises.add(
+                    WorkoutSessionExercise(
+                        sessionId = sessionId,
+                        programExerciseId = pe.id,
+                        orderIndex = pe.orderIndex,
+                        name = pe.name,
+                        plannedSets = pe.sets,
+                        plannedMinReps = pe.minReps,
+                        plannedMaxReps = pe.maxReps,
+                        plannedWeight = pe.startWeight
+                    )
+                )
+            }
+            return@collect
+        }
+        sessionExerciseDao.insertExercises(exercises)
+        return sessionId
+    }
 }
