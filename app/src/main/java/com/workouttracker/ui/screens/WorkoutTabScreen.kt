@@ -163,9 +163,6 @@ fun WorkoutTabScreen(
             .fillMaxSize()
             .padding(scaffoldPadding)
             .padding(horizontal = 20.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
