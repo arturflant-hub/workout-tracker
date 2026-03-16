@@ -62,7 +62,12 @@ class ActiveWorkoutViewModel @Inject constructor(
     fun loadSession(sessionId: Long) {
         viewModelScope.launch {
             val session = repository.getSessionById(sessionId) ?: return@launch
-            _uiState.update { it.copy(session = session, restTimerDuration = restTimerDuration) }
+            // Mark session as IN_PROGRESS immediately so it persists across navigation
+            if (session.status == SessionStatus.PLANNED) {
+                repository.startSession(sessionId)
+            }
+            val updatedSession = repository.getSessionById(sessionId) ?: session
+            _uiState.update { it.copy(session = updatedSession, restTimerDuration = restTimerDuration) }
 
             repository.getExercisesBySession(sessionId).collect { exercises ->
                 val result = exercises.map { ex ->
