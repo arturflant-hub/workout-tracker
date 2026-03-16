@@ -39,7 +39,7 @@ fun WorkoutSessionScreen(
     }
 
     val sdf = SimpleDateFormat("EEE, d MMMM", Locale("ru"))
-    val isEditable = session?.status == SessionStatus.PLANNED || session?.status == null
+    val isEditable = session?.status == SessionStatus.PLANNED || session?.status == SessionStatus.IN_PROGRESS || session?.status == null
 
     Scaffold(
         topBar = {
