@@ -3,6 +3,7 @@ package com.workouttracker.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -32,14 +33,22 @@ fun ProgramsScreen(
     var showAddProgramDialog by remember { mutableStateOf(false) }
 
     // Drag-and-drop state — declared at top level (not inside conditionals)
+    val listState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(
+        lazyListState = listState,
         onMove = { from, to ->
             viewModel.moveExercise(from.index, to.index)
-        },
-        onDragEnd = { _, _ ->
-            viewModel.persistExerciseOrder()
         }
     )
+
+    // Persist order when drag ends
+    val wasDragging = remember { mutableStateOf(false) }
+    LaunchedEffect(reorderState.isAnyItemDragging) {
+        if (wasDragging.value && !reorderState.isAnyItemDragging) {
+            viewModel.persistExerciseOrder()
+        }
+        wasDragging.value = reorderState.isAnyItemDragging
+    }
 
     Scaffold(
         topBar = {
@@ -120,7 +129,7 @@ fun ProgramsScreen(
                     }
 
                     LazyColumn(
-                        state = reorderState.listState,
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
