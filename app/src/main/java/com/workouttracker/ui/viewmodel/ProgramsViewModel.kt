@@ -21,12 +21,19 @@ class ProgramsViewModel @Inject constructor(
     private val _selectedProgramId = MutableStateFlow<Long?>(null)
     val selectedProgramId: StateFlow<Long?> = _selectedProgramId
 
-    val exercises: StateFlow<List<ProgramExercise>> = _selectedProgramId
-        .flatMapLatest { id ->
-            if (id != null) repository.getExercisesByProgram(id)
-            else flowOf(emptyList())
+    private val _exercises = MutableStateFlow<List<ProgramExercise>>(emptyList())
+    val exercises: StateFlow<List<ProgramExercise>> = _exercises.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _selectedProgramId.flatMapLatest { id ->
+                if (id != null) repository.getExercisesByProgram(id)
+                else flowOf(emptyList())
+            }.collect { list ->
+                _exercises.value = list
+            }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     fun selectProgram(id: Long) { _selectedProgramId.value = id }
 
@@ -46,5 +53,23 @@ class ProgramsViewModel @Inject constructor(
 
     fun deleteExercise(exercise: ProgramExercise) {
         viewModelScope.launch { repository.deleteExercise(exercise) }
+    }
+
+    /** Called during drag to reorder the list in memory (no DB write). */
+    fun moveExercise(fromIndex: Int, toIndex: Int) {
+        val list = _exercises.value.toMutableList()
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= list.size || toIndex >= list.size) return
+        val item = list.removeAt(fromIndex)
+        list.add(toIndex, item)
+        _exercises.value = list
+    }
+
+    /** Called when drag ends — persists the current order to DB. */
+    fun persistExerciseOrder() {
+        viewModelScope.launch {
+            val updated = _exercises.value.mapIndexed { idx, ex -> ex.copy(orderIndex = idx) }
+            _exercises.value = updated
+            repository.updateExerciseOrder(updated)
+        }
     }
 }

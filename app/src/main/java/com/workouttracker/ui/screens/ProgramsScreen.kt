@@ -1,6 +1,5 @@
 package com.workouttracker.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +16,8 @@ import androidx.navigation.NavController
 import com.workouttracker.data.db.entities.WorkoutProgram
 import com.workouttracker.ui.navigation.Screen
 import com.workouttracker.ui.viewmodel.ProgramsViewModel
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +30,16 @@ fun ProgramsScreen(
     val exercises by viewModel.exercises.collectAsState()
 
     var showAddProgramDialog by remember { mutableStateOf(false) }
+
+    // Drag-and-drop state — declared at top level (not inside conditionals)
+    val reorderState = rememberReorderableLazyListState(
+        onMove = { from, to ->
+            viewModel.moveExercise(from.index, to.index)
+        },
+        onDragEnd = { _, _ ->
+            viewModel.persistExerciseOrder()
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -54,15 +65,17 @@ fun ProgramsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            // Programs tabs
             if (programs.isEmpty()) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Нет программ. Нажмите + для создания", style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
+                // Programs tabs
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -107,26 +120,40 @@ fun ProgramsScreen(
                     }
 
                     LazyColumn(
+                        state = reorderState.listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(exercises, key = { it.id }) { exercise ->
-                            ExerciseCard(
-                                name = exercise.name,
-                                sets = exercise.sets,
-                                minReps = exercise.minReps,
-                                maxReps = exercise.maxReps,
-                                weight = exercise.startWeight,
-                                onEdit = {
-                                    navController.navigate(
-                                        Screen.ExerciseEdit.createRoute(
-                                            selectedProgram.id, exercise.id
+                            ReorderableItem(reorderState, key = exercise.id) { isDragging ->
+                                ExerciseCard(
+                                    name = exercise.name,
+                                    sets = exercise.sets,
+                                    minReps = exercise.minReps,
+                                    maxReps = exercise.maxReps,
+                                    weight = exercise.startWeight,
+                                    isDragging = isDragging,
+                                    dragHandle = {
+                                        Icon(
+                                            imageVector = Icons.Default.DragHandle,
+                                            contentDescription = "Перетащить",
+                                            modifier = Modifier
+                                                .draggableHandle()
+                                                .padding(horizontal = 4.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                    )
-                                },
-                                onDelete = { viewModel.deleteExercise(exercise) }
-                            )
+                                    },
+                                    onEdit = {
+                                        navController.navigate(
+                                            Screen.ExerciseEdit.createRoute(
+                                                selectedProgram.id, exercise.id
+                                            )
+                                        )
+                                    },
+                                    onDelete = { viewModel.deleteExercise(exercise) }
+                                )
+                            }
                         }
                     }
                 } else if (programs.isNotEmpty()) {
@@ -157,16 +184,28 @@ fun ExerciseCard(
     maxReps: Int,
     weight: Float,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    isDragging: Boolean = false,
+    dragHandle: (@Composable () -> Unit)? = null
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val elevation = if (isDragging) 8.dp else 1.dp
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Drag handle on the left
+            if (dragHandle != null) {
+                dragHandle()
+            }
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(

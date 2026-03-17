@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.reorderable)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

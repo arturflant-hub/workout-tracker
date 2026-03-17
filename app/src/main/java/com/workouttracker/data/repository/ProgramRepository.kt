@@ -41,4 +41,8 @@ class ProgramRepository @Inject constructor(
 
     suspend fun deleteExercise(exercise: ProgramExercise) =
         exerciseDao.deleteExercise(exercise)
+
+    suspend fun updateExerciseOrder(exercises: List<ProgramExercise>) {
+        exercises.forEach { exerciseDao.updateExercise(it) }
+    }
 }
