@@ -52,6 +52,9 @@ sealed class Screen(val route: String) {
     object ActiveWorkout : Screen("active_workout/{sessionId}") {
         fun createRoute(sessionId: Long) = "active_workout/$sessionId"
     }
+    object WorkoutDetail : Screen("workout_detail/{sessionId}") {
+        fun createRoute(sessionId: Long) = "workout_detail/$sessionId"
+    }
 }
 
 @Composable
@@ -186,6 +189,14 @@ fun WorkoutNavGraph(navController: NavHostController) {
             ) { backStack ->
                 val sessionId = backStack.arguments?.getLong("sessionId") ?: return@composable
                 WorkoutSessionScreen(sessionId = sessionId, navController = navController)
+            }
+
+            composable(
+                route = Screen.WorkoutDetail.route,
+                arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
+            ) { backStack ->
+                val sessionId = backStack.arguments?.getLong("sessionId") ?: return@composable
+                WorkoutDetailScreen(sessionId = sessionId, navController = navController)
             }
         }
     }

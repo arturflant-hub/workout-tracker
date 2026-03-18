@@ -77,4 +77,7 @@ class SessionRepository @Inject constructor(
 
     suspend fun getSetsForExercise(exerciseId: Long): List<WorkoutSetFact> =
         setFactDao.getSetsByExerciseOnce(exerciseId)
+
+    suspend fun getPreviousSessionByType(programType: String, beforeDate: Long): WorkoutSession? =
+        sessionDao.getLastDoneSessionByType(programType, beforeDate)
 }
