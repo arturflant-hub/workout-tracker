@@ -1,6 +1,7 @@
 package com.workouttracker.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.workouttracker.ui.navigation.Screen
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.DashboardState
 import com.workouttracker.ui.viewmodel.DashboardViewModel
@@ -93,13 +95,13 @@ fun DashboardScreen(
                         Button(
                             onClick = {
                                 state.nextSession?.id?.let { id ->
-                                    navController.navigate("planned_workout/$id")
+                                    navController.navigate(Screen.WorkoutDetail.createRoute(id))
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary)
                         ) {
-                            Text("Посмотреть план")
+                            Text("Подробнее")
                         }
                     } else {
                         Text(
@@ -114,10 +116,16 @@ fun DashboardScreen(
 
         // Last workout card
         item {
-            DarkCard {
+            DarkCard(
+                modifier = Modifier.clickable(enabled = state.lastSession != null) {
+                    state.lastSession?.id?.let { id ->
+                        navController.navigate(Screen.WorkoutDetail.createRoute(id))
+                    }
+                }
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Последняя тренировка",
+                        "Предыдущая тренировка",
                         style = MaterialTheme.typography.labelMedium,
                         color = ColorOnSurface
                     )
@@ -152,6 +160,12 @@ fun DashboardScreen(
                                     "%.0f кг тоннаж".format(state.lastSessionTonnage),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = ColorOnSurface
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Нажмите для деталей →",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorPrimary
                                 )
                             }
                         }
