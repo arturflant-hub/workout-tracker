@@ -9,6 +9,9 @@ interface ProgramExerciseDao {
     @Query("SELECT * FROM program_exercises WHERE programId = :programId ORDER BY orderIndex ASC")
     fun getExercisesByProgram(programId: Long): Flow<List<ProgramExercise>>
 
+    @Query("SELECT * FROM program_exercises WHERE programId = :programId ORDER BY orderIndex ASC")
+    suspend fun getExercisesByProgramOnce(programId: Long): List<ProgramExercise>
+
     @Query("SELECT * FROM program_exercises WHERE id = :id")
     suspend fun getExerciseById(id: Long): ProgramExercise?
 

@@ -18,6 +18,9 @@ class ProgramRepository @Inject constructor(
     fun getExercisesByProgram(programId: Long): Flow<List<ProgramExercise>> =
         exerciseDao.getExercisesByProgram(programId)
 
+    suspend fun getExercisesByProgramOnce(programId: Long): List<ProgramExercise> =
+        exerciseDao.getExercisesByProgramOnce(programId)
+
     suspend fun getProgramByType(type: String): WorkoutProgram? =
         programDao.getProgramByType(type)
 

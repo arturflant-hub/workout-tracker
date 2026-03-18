@@ -33,9 +33,7 @@ class ScheduleRepository @Inject constructor(
 
     suspend fun generateSchedule(weeksAhead: Int = 12) {
         val settings = settingsDao.getSettingsOnce() ?: return
-        val patterns = weekPatternDao.getAllPatterns().let {
-            weekPatternDao.getPatternsByWeek(1) + weekPatternDao.getPatternsByWeek(2)
-        }
+        val patterns = weekPatternDao.getPatternsByWeek(1) + weekPatternDao.getPatternsByWeek(2)
         if (patterns.isEmpty()) return
 
         val now = startOfDay(System.currentTimeMillis())
@@ -60,8 +58,6 @@ class ScheduleRepository @Inject constructor(
                 sessionCal.timeInMillis = settings.startDate
 
                 // Find the correct date: weekOffset-th week, dayOfWeek
-                val startDow = sessionCal.get(Calendar.DAY_OF_WEEK)
-                // Monday=2 in Java Calendar, but we use 1=Mon
                 val javaDow = if (dayOfWeek == 7) Calendar.SUNDAY else dayOfWeek + 1
 
                 sessionCal.set(Calendar.DAY_OF_WEEK, javaDow)
@@ -88,27 +84,21 @@ class ScheduleRepository @Inject constructor(
         sessions.forEach { session ->
             val sessionId = sessionDao.getSessionByDate(session.date)?.id ?: return@forEach
             val program = programRepository.getProgramByType(session.programType) ?: return@forEach
-            val exercises = mutableListOf<WorkoutSessionExercise>()
 
-            // We need a one-shot query here - using coroutine collect
-            var programExercises: List<ProgramExercise> = emptyList()
-            programRepository.getExercisesByProgram(program.id).collect { list ->
-                programExercises = list
-                return@collect
-            }
+            // FIX: use suspend once-query instead of Flow.collect anti-pattern
+            val programExercises = programRepository.getExercisesByProgramOnce(program.id)
+            if (programExercises.isEmpty()) return@forEach
 
-            programExercises.forEach { pe ->
-                exercises.add(
-                    WorkoutSessionExercise(
-                        sessionId = sessionId,
-                        programExerciseId = pe.id,
-                        orderIndex = pe.orderIndex,
-                        name = pe.name,
-                        plannedSets = pe.sets,
-                        plannedMinReps = pe.minReps,
-                        plannedMaxReps = pe.maxReps,
-                        plannedWeight = pe.startWeight
-                    )
+            val exercises = programExercises.map { pe ->
+                WorkoutSessionExercise(
+                    sessionId = sessionId,
+                    programExerciseId = pe.id,
+                    orderIndex = pe.orderIndex,
+                    name = pe.name,
+                    plannedSets = pe.sets,
+                    plannedMinReps = pe.minReps,
+                    plannedMaxReps = pe.maxReps,
+                    plannedWeight = pe.startWeight
                 )
             }
             sessionExerciseDao.insertExercises(exercises)
@@ -127,6 +117,11 @@ class ScheduleRepository @Inject constructor(
 
     fun getAllSessions(): Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
 
+    /**
+     * Creates a session for today from the given programType.
+     * Returns the session ID (existing or newly created).
+     * FIX: replaced Flow.collect anti-pattern with getExercisesByProgramOnce().
+     */
     suspend fun createQuickSession(programType: String): Long {
         val today = startOfDay(System.currentTimeMillis())
         // Check if session for today already exists
@@ -140,28 +135,68 @@ class ScheduleRepository @Inject constructor(
         )
         val sessionId = sessionDao.insertSession(session)
 
-        // Copy exercises from program
+        // Copy exercises from program — use suspend once-query (not Flow.collect)
         val program = programRepository.getProgramByType(programType) ?: return sessionId
-        val exercises = mutableListOf<WorkoutSessionExercise>()
+        val programExercises = programRepository.getExercisesByProgramOnce(program.id)
 
-        programRepository.getExercisesByProgram(program.id).collect { list ->
-            list.forEach { pe ->
-                exercises.add(
-                    WorkoutSessionExercise(
-                        sessionId = sessionId,
-                        programExerciseId = pe.id,
-                        orderIndex = pe.orderIndex,
-                        name = pe.name,
-                        plannedSets = pe.sets,
-                        plannedMinReps = pe.minReps,
-                        plannedMaxReps = pe.maxReps,
-                        plannedWeight = pe.startWeight
-                    )
+        if (programExercises.isNotEmpty()) {
+            val exercises = programExercises.map { pe ->
+                WorkoutSessionExercise(
+                    sessionId = sessionId,
+                    programExerciseId = pe.id,
+                    orderIndex = pe.orderIndex,
+                    name = pe.name,
+                    plannedSets = pe.sets,
+                    plannedMinReps = pe.minReps,
+                    plannedMaxReps = pe.maxReps,
+                    plannedWeight = pe.startWeight
                 )
             }
-            return@collect
+            sessionExerciseDao.insertExercises(exercises)
         }
-        sessionExerciseDao.insertExercises(exercises)
+
         return sessionId
+    }
+
+    /**
+     * FIX for Bug 1: Checks if today has a scheduled workout via WeekPattern/ScheduleSettings
+     * and auto-creates a session if one is due but missing from the DB.
+     */
+    suspend fun ensureTodaySessionIfScheduled() {
+        val todayStart = startOfDay(System.currentTimeMillis())
+
+        // Already have a session for today? Do nothing.
+        val existing = sessionDao.getSessionByDate(todayStart)
+        if (existing != null) return
+
+        // Load schedule settings
+        val settings = settingsDao.getSettingsOnce() ?: return
+
+        // Determine today's day of week (1=Mon … 7=Sun)
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = todayStart
+        val javaDow = cal.get(Calendar.DAY_OF_WEEK) // Calendar: 1=Sun, 2=Mon … 7=Sat
+        val dayOfWeek = if (javaDow == Calendar.SUNDAY) 7 else javaDow - 1 // → 1=Mon, 7=Sun
+
+        // Check if today is a training day per the bitmask
+        val mask = 1 shl (dayOfWeek - 1)
+        if (settings.trainingDaysMask and mask == 0) return
+
+        // Determine the current week type (1 or 2) based on weeks elapsed since schedule start
+        val startDay = startOfDay(settings.startDate)
+        val weeksSinceStart = ((todayStart - startDay) / (7L * 24 * 60 * 60 * 1000)).toInt()
+            .coerceAtLeast(0)
+        val weekType = if (weeksSinceStart % 2 == 0) {
+            settings.startWeekType
+        } else {
+            if (settings.startWeekType == 1) 2 else 1
+        }
+
+        // Look up pattern for (weekType, dayOfWeek)
+        val patterns = weekPatternDao.getPatternsByWeek(weekType)
+        val pattern = patterns.find { it.dayOfWeek == dayOfWeek } ?: return
+
+        // Create the session (with exercises)
+        createQuickSession(pattern.programType)
     }
 }

@@ -55,6 +55,9 @@ class WorkoutTabViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Bug 1 fix: auto-create today's session from schedule if not yet present in DB
+            scheduleRepository.ensureTodaySessionIfScheduled()
+
             scheduleRepository.getAllSessions().collect { sessions ->
                 val now = System.currentTimeMillis()
                 val todayStart = startOfDay(now)
