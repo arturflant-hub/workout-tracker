@@ -12,7 +12,11 @@ import com.workouttracker.data.db.entities.SessionStatus
 import com.workouttracker.data.db.entities.WorkoutSession
 import com.workouttracker.data.db.entities.WorkoutSessionExercise
 import com.workouttracker.data.db.entities.WorkoutSetFact
+import com.workouttracker.data.repository.ProgramRepository
 import com.workouttracker.data.repository.SessionRepository
+import com.workouttracker.domain.model.Recommendation
+import com.workouttracker.domain.model.RecommendationType
+import com.workouttracker.domain.usecase.ProgressionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -25,13 +29,15 @@ data class ActiveSetInput(
     val plannedWeight: Float,
     var actualReps: Int,
     var actualWeight: Float,
+    var rir: Int = 0,
     var factId: Long = 0L,
     var isDone: Boolean = false
 )
 
 data class ActiveExerciseWithSets(
     val exercise: WorkoutSessionExercise,
-    val sets: List<ActiveSetInput>
+    val sets: List<ActiveSetInput>,
+    val recommendation: Recommendation? = null
 )
 
 data class ActiveWorkoutUiState(
@@ -40,12 +46,17 @@ data class ActiveWorkoutUiState(
     val restTimerSeconds: Int = 0,
     val restTimerRunning: Boolean = false,
     val restTimerDuration: Int = 90,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val elapsedSeconds: Long = 0L,
+    val isPaused: Boolean = false,
+    val selectedExerciseIndex: Int? = null
 )
 
 @HiltViewModel
 class ActiveWorkoutViewModel @Inject constructor(
     private val repository: SessionRepository,
+    private val programRepository: ProgramRepository,
+    private val progressionUseCase: ProgressionUseCase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -56,18 +67,22 @@ class ActiveWorkoutViewModel @Inject constructor(
     val uiState: StateFlow<ActiveWorkoutUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
+    private var workoutTimerJob: Job? = null
 
     val restTimerDuration: Int get() = prefs.getInt("rest_timer_duration", 90)
 
     fun loadSession(sessionId: Long) {
         viewModelScope.launch {
             val session = repository.getSessionById(sessionId) ?: return@launch
-            // Mark session as IN_PROGRESS immediately so it persists across navigation
             if (session.status == SessionStatus.PLANNED) {
                 repository.startSession(sessionId)
             }
             val updatedSession = repository.getSessionById(sessionId) ?: session
-            _uiState.update { it.copy(session = updatedSession, restTimerDuration = restTimerDuration) }
+            _uiState.update {
+                it.copy(session = updatedSession, restTimerDuration = restTimerDuration)
+            }
+
+            startWorkoutTimer()
 
             repository.getExercisesBySession(sessionId).collect { exercises ->
                 val result = exercises.map { ex ->
@@ -80,6 +95,7 @@ class ActiveWorkoutViewModel @Inject constructor(
                                 plannedWeight = sf.plannedWeight,
                                 actualReps = sf.actualReps,
                                 actualWeight = sf.actualWeight,
+                                rir = sf.rir,
                                 factId = sf.id,
                                 isDone = sf.actualReps > 0
                             )
@@ -95,12 +111,49 @@ class ActiveWorkoutViewModel @Inject constructor(
                             )
                         }
                     }
-                    ActiveExerciseWithSets(ex, sets)
+
+                    // Load recommendation for exercise
+                    val programEx = programRepository.getExerciseById(ex.programExerciseId)
+                    val recommendation = programEx?.let {
+                        try { progressionUseCase.getProgressionRecommendation(it) } catch (_: Exception) { null }
+                    }
+
+                    ActiveExerciseWithSets(ex, sets, recommendation)
                 }
                 _uiState.update { it.copy(exercisesWithSets = result) }
             }
         }
     }
+
+    // ---------- Workout timer ----------
+
+    private fun startWorkoutTimer() {
+        workoutTimerJob?.cancel()
+        workoutTimerJob = viewModelScope.launch {
+            while (isActive) {
+                delay(1000)
+                if (!_uiState.value.isPaused) {
+                    _uiState.update { it.copy(elapsedSeconds = it.elapsedSeconds + 1) }
+                }
+            }
+        }
+    }
+
+    fun pauseWorkout() {
+        _uiState.update { it.copy(isPaused = true) }
+    }
+
+    fun resumeWorkout() {
+        _uiState.update { it.copy(isPaused = false) }
+    }
+
+    // ---------- Exercise selection ----------
+
+    fun selectExercise(index: Int?) {
+        _uiState.update { it.copy(selectedExerciseIndex = index) }
+    }
+
+    // ---------- Set management ----------
 
     fun markSetDone(exerciseId: Long, setInput: ActiveSetInput) {
         viewModelScope.launch {
@@ -111,10 +164,24 @@ class ActiveWorkoutViewModel @Inject constructor(
                 plannedReps = setInput.plannedReps,
                 plannedWeight = setInput.plannedWeight,
                 actualReps = setInput.actualReps,
-                actualWeight = setInput.actualWeight
+                actualWeight = setInput.actualWeight,
+                rir = setInput.rir
             )
             if (setInput.factId == 0L) {
-                repository.saveSetFact(fact)
+                val newId = repository.saveSetFact(fact)
+                // Update factId in state
+                val exList = _uiState.value.exercisesWithSets.toMutableList()
+                val exIdx = exList.indexOfFirst { it.exercise.id == exerciseId }
+                if (exIdx >= 0) {
+                    val ex = exList[exIdx]
+                    val setIdx = ex.sets.indexOfFirst { it.setIndex == setInput.setIndex }
+                    if (setIdx >= 0) {
+                        val newSets = ex.sets.toMutableList()
+                        newSets[setIdx] = newSets[setIdx].copy(factId = newId, isDone = true)
+                        exList[exIdx] = ex.copy(sets = newSets)
+                        _uiState.update { it.copy(exercisesWithSets = exList) }
+                    }
+                }
             } else {
                 repository.updateSetFact(fact)
             }
@@ -130,6 +197,8 @@ class ActiveWorkoutViewModel @Inject constructor(
         current[exerciseIdx] = ex.copy(sets = newSets)
         _uiState.update { it.copy(exercisesWithSets = current) }
     }
+
+    // ---------- Rest timer ----------
 
     fun startRestTimer() {
         timerJob?.cancel()
@@ -157,6 +226,8 @@ class ActiveWorkoutViewModel @Inject constructor(
         _uiState.update { it.copy(restTimerDuration = seconds) }
     }
 
+    // ---------- Complete ----------
+
     fun completeWorkout(onDone: () -> Unit) {
         viewModelScope.launch {
             _uiState.value.session?.id?.let { id ->
@@ -166,6 +237,8 @@ class ActiveWorkoutViewModel @Inject constructor(
             }
         }
     }
+
+    // ---------- Vibration ----------
 
     private fun vibrate() {
         try {
@@ -192,5 +265,6 @@ class ActiveWorkoutViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
+        workoutTimerJob?.cancel()
     }
 }

@@ -3,15 +3,20 @@ package com.workouttracker.ui.screens
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,14 +28,33 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.workouttracker.domain.model.RecommendationType
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.ActiveExerciseWithSets
 import com.workouttracker.ui.viewmodel.ActiveSetInput
 import com.workouttracker.ui.viewmodel.ActiveWorkoutViewModel
+
+// ──────────────────────────────────────────────
+//  Helpers
+// ──────────────────────────────────────────────
+
+private fun formatElapsed(secs: Long): String {
+    val h = secs / 3600
+    val m = (secs % 3600) / 60
+    val s = secs % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+}
+
+// ──────────────────────────────────────────────
+//  Main Screen
+// ──────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +70,25 @@ fun ActiveWorkoutScreen(
         viewModel.loadSession(sessionId)
     }
 
+    // Exercise detail dialog
+    val selectedIdx = uiState.selectedExerciseIndex
+    if (selectedIdx != null && selectedIdx < uiState.exercisesWithSets.size) {
+        ExerciseDetailDialog(
+            exerciseWithSets = uiState.exercisesWithSets[selectedIdx],
+            exerciseIndex = selectedIdx,
+            restTimerRunning = uiState.restTimerRunning,
+            restTimerSeconds = uiState.restTimerSeconds,
+            restTimerDuration = uiState.restTimerDuration,
+            onSkipRest = { viewModel.skipRestTimer() },
+            onSetChanged = { setIdx, updated -> viewModel.updateSetInput(selectedIdx, setIdx, updated) },
+            onSetDone = { setIdx, updated ->
+                viewModel.updateSetInput(selectedIdx, setIdx, updated.copy(isDone = true))
+                viewModel.markSetDone(uiState.exercisesWithSets[selectedIdx].exercise.id, updated)
+            },
+            onDismiss = { viewModel.selectExercise(null) }
+        )
+    }
+
     Scaffold(
         containerColor = ColorBackground,
         topBar = {
@@ -57,11 +100,30 @@ fun ActiveWorkoutScreen(
                             color = ColorOnBackground,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            "${uiState.exercisesWithSets.size} упражнений",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ColorOnSurface
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "${uiState.exercisesWithSets.size} упражнений",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ColorOnSurface
+                            )
+                            Text("·", color = ColorOnSurface, style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                formatElapsed(uiState.elapsedSeconds),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (uiState.isPaused) ColorOnSurface else ColorPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (uiState.isPaused) {
+                                Text(
+                                    "⏸ пауза",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorOnSurface
+                                )
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
@@ -74,8 +136,8 @@ fun ActiveWorkoutScreen(
         },
         bottomBar = {
             Column {
-                // Rest timer
-                if (uiState.restTimerRunning) {
+                // Rest timer (global — visible when no dialog is open)
+                if (uiState.restTimerRunning && selectedIdx == null) {
                     RestTimerBar(
                         seconds = uiState.restTimerSeconds,
                         totalSeconds = uiState.restTimerDuration,
@@ -83,21 +145,52 @@ fun ActiveWorkoutScreen(
                     )
                 }
                 Surface(color = ColorBackground) {
-                    Button(
-                        onClick = { showCompleteDialog = true },
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ColorSecondary),
-                        shape = RoundedCornerShape(12.dp)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.Check, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Завершить тренировку",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        // Pause / Resume button
+                        OutlinedButton(
+                            onClick = {
+                                if (uiState.isPaused) viewModel.resumeWorkout()
+                                else viewModel.pauseWorkout()
+                            },
+                            modifier = Modifier.weight(1f),
+                            border = BorderStroke(1.dp, ColorSurfaceVariant),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (uiState.isPaused) ColorSecondary else ColorOnSurface
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (uiState.isPaused) "Продолжить" else "Пауза",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+
+                        // Finish button
+                        Button(
+                            onClick = { showCompleteDialog = true },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = ColorSecondary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Завершить",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -109,23 +202,21 @@ fun ActiveWorkoutScreen(
                 .padding(padding)
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            itemsIndexed(uiState.exercisesWithSets, key = { _, item -> item.exercise.id }) { exIdx, exWithSets ->
-                ActiveExerciseCard(
+            itemsIndexed(
+                uiState.exercisesWithSets,
+                key = { _, item -> item.exercise.id }
+            ) { exIdx, exWithSets ->
+                ExerciseSummaryCard(
                     exerciseWithSets = exWithSets,
-                    onSetDone = { updatedSet ->
-                        viewModel.updateSetInput(exIdx, updatedSet.setIndex - 1, updatedSet.copy(isDone = true))
-                        viewModel.markSetDone(exWithSets.exercise.id, updatedSet)
-                    },
-                    onSetChanged = { setIdx, updatedSet ->
-                        viewModel.updateSetInput(exIdx, setIdx, updatedSet)
-                    }
+                    onClick = { viewModel.selectExercise(exIdx) }
                 )
             }
         }
     }
 
+    // Confirm finish dialog
     if (showCompleteDialog) {
         AlertDialog(
             onDismissRequest = { showCompleteDialog = false },
@@ -153,6 +244,390 @@ fun ActiveWorkoutScreen(
     }
 }
 
+// ──────────────────────────────────────────────
+//  Exercise summary card (in main list)
+// ──────────────────────────────────────────────
+
+@Composable
+fun ExerciseSummaryCard(
+    exerciseWithSets: ActiveExerciseWithSets,
+    onClick: () -> Unit
+) {
+    val ex = exerciseWithSets.exercise
+    val doneSets = exerciseWithSets.sets.count { it.isDone }
+    val totalSets = exerciseWithSets.sets.size
+    val allDone = doneSets == totalSets && totalSets > 0
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (allDone) ColorSurface else ColorSurface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (allDone) ColorSecondary.copy(alpha = 0.5f) else ColorSurfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    ex.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorOnBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${ex.plannedWeight}кг",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ColorOnSurface
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // Sets progress indicator
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "$doneSets/$totalSets",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (allDone) ColorSecondary else ColorPrimary
+                )
+                Text(
+                    "подходов",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ColorOnSurface
+                )
+            }
+
+            if (allDone) {
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Выполнено",
+                    tint = ColorSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Exercise detail dialog
+// ──────────────────────────────────────────────
+
+@Composable
+fun ExerciseDetailDialog(
+    exerciseWithSets: ActiveExerciseWithSets,
+    exerciseIndex: Int,
+    restTimerRunning: Boolean,
+    restTimerSeconds: Int,
+    restTimerDuration: Int,
+    onSkipRest: () -> Unit,
+    onSetChanged: (Int, ActiveSetInput) -> Unit,
+    onSetDone: (Int, ActiveSetInput) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val ex = exerciseWithSets.exercise
+    var localSets by remember(exerciseWithSets.sets) { mutableStateOf(exerciseWithSets.sets) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(20.dp),
+            color = ColorSurface
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+
+                // ── Header ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            ex.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorOnBackground
+                        )
+                        Text(
+                            "План: ${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${ex.plannedWeight}кг",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, "Закрыть", tint = ColorOnSurface)
+                    }
+                }
+
+                // ── Recommendation ──
+                exerciseWithSets.recommendation?.let { rec ->
+                    val (icon, bgColor) = when (rec.type) {
+                        RecommendationType.INCREASE_WEIGHT -> "⬆️" to ColorPrimary.copy(alpha = 0.12f)
+                        RecommendationType.INCREASE_REPS -> "👍" to ColorSecondary.copy(alpha = 0.10f)
+                        else -> "⚠️" to ColorError.copy(alpha = 0.10f)
+                    }
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = bgColor,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(icon, fontSize = 18.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                rec.text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ColorOnBackground
+                            )
+                        }
+                    }
+                }
+
+                // ── Rest timer (inside dialog) ──
+                if (restTimerRunning) {
+                    RestTimerBar(
+                        seconds = restTimerSeconds,
+                        totalSeconds = restTimerDuration,
+                        onSkip = onSkipRest
+                    )
+                }
+
+                HorizontalDivider(
+                    color = ColorSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                // ── Column headers ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("№", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface,
+                        modifier = Modifier.weight(0.4f))
+                    Text("Вес, кг", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface,
+                        modifier = Modifier.weight(1.3f), textAlign = TextAlign.Center)
+                    Text("Повт.", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface,
+                        modifier = Modifier.weight(1.1f), textAlign = TextAlign.Center)
+                    Text("RIR", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface,
+                        modifier = Modifier.weight(0.9f), textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.weight(0.8f))
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // ── Set rows (scrollable) ──
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                ) {
+                    localSets.forEachIndexed { idx, setInput ->
+                        ActiveSetRow(
+                            setInput = setInput,
+                            onChanged = { updated ->
+                                val newList = localSets.toMutableList().also { it[idx] = updated }
+                                localSets = newList
+                                onSetChanged(idx, updated)
+                            },
+                            onDone = { updated ->
+                                val newList = localSets.toMutableList()
+                                    .also { it[idx] = updated.copy(isDone = true) }
+                                localSets = newList
+                                onSetDone(idx, updated)
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Set row (with RIR)
+// ──────────────────────────────────────────────
+
+@Composable
+fun ActiveSetRow(
+    setInput: ActiveSetInput,
+    onChanged: (ActiveSetInput) -> Unit,
+    onDone: (ActiveSetInput) -> Unit
+) {
+    var weightText by remember(setInput.setIndex, setInput.isDone) {
+        mutableStateOf(setInput.actualWeight.let {
+            if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString()
+        })
+    }
+    var repsText by remember(setInput.setIndex, setInput.isDone) {
+        mutableStateOf(setInput.actualReps.toString())
+    }
+    var rirText by remember(setInput.setIndex, setInput.isDone) {
+        mutableStateOf(setInput.rir.toString())
+    }
+
+    val rowColor = if (setInput.isDone) ColorSecondary.copy(alpha = 0.08f) else ColorBackground.copy(alpha = 0f)
+
+    Surface(
+        color = rowColor,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.padding(vertical = 3.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Set index
+            Text(
+                "${setInput.setIndex}",
+                modifier = Modifier.weight(0.4f).padding(start = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (setInput.isDone) ColorSecondary else ColorOnSurface,
+                fontWeight = if (setInput.isDone) FontWeight.Bold else FontWeight.Normal
+            )
+
+            // Weight field
+            CompactTextField(
+                value = weightText,
+                onValueChange = { v ->
+                    weightText = v
+                    onChanged(setInput.copy(
+                        actualWeight = v.toFloatOrNull() ?: setInput.actualWeight,
+                        actualReps = repsText.toIntOrNull() ?: setInput.actualReps,
+                        rir = rirText.toIntOrNull() ?: setInput.rir
+                    ))
+                },
+                modifier = Modifier.weight(1.3f).padding(horizontal = 2.dp),
+                enabled = !setInput.isDone,
+                isDone = setInput.isDone,
+                keyboardType = KeyboardType.Decimal
+            )
+
+            // Reps field
+            CompactTextField(
+                value = repsText,
+                onValueChange = { v ->
+                    repsText = v
+                    onChanged(setInput.copy(
+                        actualReps = v.toIntOrNull() ?: setInput.actualReps,
+                        actualWeight = weightText.toFloatOrNull() ?: setInput.actualWeight,
+                        rir = rirText.toIntOrNull() ?: setInput.rir
+                    ))
+                },
+                modifier = Modifier.weight(1.1f).padding(horizontal = 2.dp),
+                enabled = !setInput.isDone,
+                isDone = setInput.isDone,
+                keyboardType = KeyboardType.Number
+            )
+
+            // RIR field
+            CompactTextField(
+                value = rirText,
+                onValueChange = { v ->
+                    rirText = v
+                    onChanged(setInput.copy(
+                        rir = v.toIntOrNull() ?: setInput.rir,
+                        actualWeight = weightText.toFloatOrNull() ?: setInput.actualWeight,
+                        actualReps = repsText.toIntOrNull() ?: setInput.actualReps
+                    ))
+                },
+                modifier = Modifier.weight(0.9f).padding(horizontal = 2.dp),
+                enabled = !setInput.isDone,
+                isDone = setInput.isDone,
+                keyboardType = KeyboardType.Number
+            )
+
+            // Done button
+            IconButton(
+                onClick = {
+                    val current = setInput.copy(
+                        actualWeight = weightText.toFloatOrNull() ?: setInput.actualWeight,
+                        actualReps = repsText.toIntOrNull() ?: setInput.actualReps,
+                        rir = rirText.toIntOrNull() ?: setInput.rir
+                    )
+                    onDone(current)
+                },
+                modifier = Modifier.weight(0.8f),
+                enabled = !setInput.isDone
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    "Выполнено",
+                    tint = if (setInput.isDone) ColorSecondary else ColorOnSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isDone: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Number
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = ColorPrimary,
+            unfocusedBorderColor = if (isDone) ColorSecondary else ColorSurfaceVariant,
+            focusedTextColor = ColorOnBackground,
+            unfocusedTextColor = ColorOnBackground,
+            cursorColor = ColorPrimary,
+            disabledTextColor = ColorOnSurface,
+            disabledBorderColor = if (isDone) ColorSecondary.copy(alpha = 0.4f) else ColorSurfaceVariant
+        ),
+        enabled = enabled
+    )
+}
+
+// ──────────────────────────────────────────────
+//  Rest timer bar
+// ──────────────────────────────────────────────
+
 @Composable
 fun RestTimerBar(
     seconds: Int,
@@ -167,7 +642,7 @@ fun RestTimerBar(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -175,20 +650,18 @@ fun RestTimerBar(
             // Circular timer
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(56.dp)
             ) {
-                Canvas(modifier = Modifier.size(64.dp)) {
-                    val strokeWidth = 6.dp.toPx()
+                Canvas(modifier = Modifier.size(56.dp)) {
+                    val strokeWidth = 5.dp.toPx()
                     val radius = (size.minDimension - strokeWidth) / 2
                     val center = Offset(size.width / 2, size.height / 2)
-                    // Background circle
                     drawCircle(
                         color = ColorSurfaceVariant,
                         radius = radius,
                         center = center,
                         style = Stroke(width = strokeWidth)
                     )
-                    // Progress arc
                     drawArc(
                         color = ColorPrimary,
                         startAngle = -90f,
@@ -203,7 +676,7 @@ fun RestTimerBar(
                     text = "${seconds}с",
                     color = ColorOnBackground,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 12.sp
                 )
             }
 
@@ -227,175 +700,10 @@ fun RestTimerBar(
             OutlinedButton(
                 onClick = onSkip,
                 border = BorderStroke(1.dp, ColorSurfaceVariant),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorOnSurface)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorOnSurface),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text("Пропустить", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-@Composable
-fun ActiveExerciseCard(
-    exerciseWithSets: ActiveExerciseWithSets,
-    onSetDone: (ActiveSetInput) -> Unit,
-    onSetChanged: (Int, ActiveSetInput) -> Unit
-) {
-    val ex = exerciseWithSets.exercise
-    var localSets by remember(exerciseWithSets.sets) { mutableStateOf(exerciseWithSets.sets) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = ColorSurface),
-        border = BorderStroke(1.dp, ColorSurfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                ex.name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = ColorOnBackground
-            )
-            Text(
-                "План: ${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${ex.plannedWeight}кг",
-                style = MaterialTheme.typography.bodySmall,
-                color = ColorOnSurface
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Text("№", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface, modifier = Modifier.weight(0.5f))
-                Text("Повт.", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface, modifier = Modifier.weight(1.5f), textAlign = TextAlign.Center)
-                Text("Вес, кг", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface, modifier = Modifier.weight(1.5f), textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            HorizontalDivider(color = ColorSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
-
-            localSets.forEachIndexed { idx, setInput ->
-                ActiveSetRow(
-                    setInput = setInput,
-                    onChanged = { updated ->
-                        val newList = localSets.toMutableList().also { it[idx] = updated }
-                        localSets = newList
-                        onSetChanged(idx, updated)
-                    },
-                    onDone = { updated ->
-                        val newList = localSets.toMutableList().also { it[idx] = updated.copy(isDone = true) }
-                        localSets = newList
-                        onSetDone(updated)
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ActiveSetRow(
-    setInput: ActiveSetInput,
-    onChanged: (ActiveSetInput) -> Unit,
-    onDone: (ActiveSetInput) -> Unit
-) {
-    var repsText by remember(setInput.setIndex) { mutableStateOf(setInput.actualReps.toString()) }
-    var weightText by remember(setInput.setIndex) { mutableStateOf(setInput.actualWeight.toString()) }
-
-    val rowColor = if (setInput.isDone) ColorSecondary.copy(alpha = 0.1f) else ColorBackground.copy(alpha = 0f)
-
-    Surface(
-        color = rowColor,
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.padding(vertical = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp, horizontal = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "${setInput.setIndex}",
-                modifier = Modifier.weight(0.5f),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (setInput.isDone) ColorSecondary else ColorOnSurface,
-                fontWeight = if (setInput.isDone) FontWeight.Bold else FontWeight.Normal
-            )
-
-            OutlinedTextField(
-                value = repsText,
-                onValueChange = { v ->
-                    repsText = v
-                    val current = setInput.copy(
-                        actualReps = v.toIntOrNull() ?: setInput.actualReps,
-                        actualWeight = weightText.toFloatOrNull() ?: setInput.actualWeight
-                    )
-                    onChanged(current)
-                },
-                modifier = Modifier
-                    .weight(1.5f)
-                    .padding(horizontal = 2.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = ColorPrimary,
-                    unfocusedBorderColor = if (setInput.isDone) ColorSecondary else ColorSurfaceVariant,
-                    focusedTextColor = ColorOnBackground,
-                    unfocusedTextColor = ColorOnBackground,
-                    cursorColor = ColorPrimary
-                ),
-                enabled = !setInput.isDone
-            )
-
-            OutlinedTextField(
-                value = weightText,
-                onValueChange = { v ->
-                    weightText = v
-                    val current = setInput.copy(
-                        actualReps = repsText.toIntOrNull() ?: setInput.actualReps,
-                        actualWeight = v.toFloatOrNull() ?: setInput.actualWeight
-                    )
-                    onChanged(current)
-                },
-                modifier = Modifier
-                    .weight(1.5f)
-                    .padding(horizontal = 2.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = ColorPrimary,
-                    unfocusedBorderColor = if (setInput.isDone) ColorSecondary else ColorSurfaceVariant,
-                    focusedTextColor = ColorOnBackground,
-                    unfocusedTextColor = ColorOnBackground,
-                    cursorColor = ColorPrimary
-                ),
-                enabled = !setInput.isDone
-            )
-
-            IconButton(
-                onClick = {
-                    val current = setInput.copy(
-                        actualReps = repsText.toIntOrNull() ?: setInput.actualReps,
-                        actualWeight = weightText.toFloatOrNull() ?: setInput.actualWeight
-                    )
-                    onDone(current)
-                },
-                modifier = Modifier.weight(1f),
-                enabled = !setInput.isDone
-            ) {
-                Icon(
-                    Icons.Default.Check,
-                    "Выполнено",
-                    tint = if (setInput.isDone) ColorSecondary else ColorOnSurface
-                )
             }
         }
     }

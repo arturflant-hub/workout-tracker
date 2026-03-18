@@ -24,5 +24,6 @@ data class WorkoutSetFact(
     val plannedReps: Int,
     val plannedWeight: Float,
     val actualReps: Int,
-    val actualWeight: Float
+    val actualWeight: Float,
+    val rir: Int = 0  // Reps In Reserve
 )

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.workouttracker.data.db.AppDatabase
 import com.workouttracker.data.db.MIGRATION_1_2
+import com.workouttracker.data.db.MIGRATION_2_3
 import com.workouttracker.data.db.dao.*
 import dagger.Module
 import dagger.Provides
@@ -24,7 +25,7 @@ object AppModule {
             AppDatabase::class.java,
             "workout_tracker.db"
         )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides

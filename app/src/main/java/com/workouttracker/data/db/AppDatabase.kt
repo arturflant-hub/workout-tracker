@@ -38,6 +38,12 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE workout_set_facts ADD COLUMN rir INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         User::class,
@@ -50,7 +56,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         WorkoutSetFact::class,
         BodyMeasurement::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
