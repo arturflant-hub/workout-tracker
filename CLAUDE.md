@@ -115,6 +115,13 @@ States: active session → today planned → nearest upcoming → empty.
 - Body weight line chart
 - Body fat % line chart (Navy formula)
 
+## Правило ведения истории
+
+**После каждого изменения в проекте — обновить этот файл:**
+- Добавить строку в таблицу `## История изменений` (дата, что сделано, затронутые файлы)
+- Если добавлена новая фича или изменена архитектура — обновить соответствующий раздел выше
+- Это правило распространяется на Claude и на любого разработчика
+
 ## Key Architectural Rules
 
 - Business logic only in `domain/` — NOT in ViewModel
@@ -125,12 +132,13 @@ States: active session → today planned → nearest upcoming → empty.
 - Date formatting → `SimpleDateFormat` with `Locale("ru")`
 - Design: dark bg `#0F0F0F`, surface `#1C1C1E`, primary `#6C63FF`, secondary `#30D158`, rounded corners 12-16dp
 
-## Recent Commits
+## История изменений
 
-| Hash | Description |
-|------|-------------|
-| d4a3afe | feat: domain layer, RIR-aware progression, sparklines, typed bar charts |
-| 9d3e9e3 | fix: 3 critical bugs in workout scheduling and exercise loading |
-| 36ca790 | feat: Task 3 - Dashboard cards navigation to WorkoutDetailScreen |
-| 85b291f | feat: Task 2 - refactor ActiveWorkoutScreen |
-| 29288bc | feat: implement WorkoutDetailScreen + WorkoutDetailViewModel |
+| Дата | Commit | Что сделано | Файлы |
+|------|--------|-------------|-------|
+| 2026-03-21 | d4a3afe | Добавлен BodyMetricsCalculator (domain), RIR-aware ProgressionUseCase, MiniSparkline в WorkoutDetail, TypedBarChart + weekly volume в Statistics | BodyMetricsCalculator.kt, ProgressionUseCase.kt, StatisticsScreen.kt, StatisticsViewModel.kt, WorkoutDetailScreen.kt, WorkoutDetailViewModel.kt, DashboardViewModel.kt |
+| 2026-03-21 | 5b0d146 | Создан CLAUDE.md с контекстом проекта | CLAUDE.md |
+| 2026-03-21 | 9d3e9e3 | Исправлены 3 критических бага: авто-создание сессии из расписания, anti-pattern Flow.collect, загрузка упражнений | ScheduleRepository.kt |
+| 2026-03-21 | 36ca790 | Dashboard карточки с навигацией на WorkoutDetailScreen | DashboardScreen.kt, DashboardViewModel.kt |
+| 2026-03-21 | 85b291f | Рефакторинг ActiveWorkoutScreen | ActiveWorkoutScreen.kt, ActiveWorkoutViewModel.kt |
+| 2026-03-21 | 29288bc | WorkoutDetailScreen + WorkoutDetailViewModel | WorkoutDetailScreen.kt, WorkoutDetailViewModel.kt |
