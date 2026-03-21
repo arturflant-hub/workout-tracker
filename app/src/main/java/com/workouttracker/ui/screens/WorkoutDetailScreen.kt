@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -322,8 +325,10 @@ private fun ExerciseDetailCard(
                 }
             }
 
-            // Mini bar charts (only if we have previous data)
-            if (hasPrevData) {
+            // Sparkline charts — history if 2+ points, else prev/current bars
+            val hasHistory = item.tonnageHistory.size >= 2
+            val hasPrevOrHistory = hasPrevData || hasHistory
+            if (hasPrevOrHistory) {
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider(color = ColorSurfaceVariant, thickness = 0.5.dp)
                 Spacer(Modifier.height(12.dp))
@@ -332,24 +337,15 @@ private fun ExerciseDetailCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MiniBarChart(
-                        prevValue = item.prevTonnage,
-                        currentValue = item.currentTonnage,
-                        label = "Тоннаж",
-                        unit = "кг"
-                    )
-                    MiniBarChart(
-                        prevValue = item.prevE1RM,
-                        currentValue = item.currentE1RM,
-                        label = "e1RM",
-                        unit = "кг"
-                    )
-                    MiniBarChart(
-                        prevValue = item.prevReps.toFloat(),
-                        currentValue = item.currentReps.toFloat(),
-                        label = "Повторы",
-                        unit = ""
-                    )
+                    if (hasHistory) {
+                        MiniSparkline(values = item.tonnageHistory, label = "Тоннаж", unit = "кг", color = ColorPrimary)
+                        MiniSparkline(values = item.e1rmHistory, label = "e1RM", unit = "кг", color = ColorSecondary)
+                        MiniSparkline(values = item.repsHistory.map { it.toFloat() }, label = "Повторы", unit = "", color = Color(0xFFFF9F0A))
+                    } else {
+                        MiniBarChart(prevValue = item.prevTonnage, currentValue = item.currentTonnage, label = "Тоннаж", unit = "кг")
+                        MiniBarChart(prevValue = item.prevE1RM, currentValue = item.currentE1RM, label = "e1RM", unit = "кг")
+                        MiniBarChart(prevValue = item.prevReps.toFloat(), currentValue = item.currentReps.toFloat(), label = "Повторы", unit = "")
+                    }
                 }
             }
         }
@@ -442,5 +438,69 @@ private fun formatChartValue(value: Float, unit: String): String {
         "${"%.0f".format(value / 1000f)}k$unit"
     } else {
         "${"%.0f".format(value)}$unit"
+    }
+}
+
+/**
+ * Sparkline showing the last N sessions trend (oldest → newest, left → right).
+ * Draws a filled area line chart. Falls back gracefully to a single dot.
+ */
+@Composable
+private fun MiniSparkline(
+    values: List<Float>,
+    label: String,
+    unit: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.width(80.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = ColorOnSurface, fontSize = 10.sp)
+        Spacer(Modifier.height(4.dp))
+
+        Canvas(modifier = Modifier.width(72.dp).height(52.dp)) {
+            if (values.isEmpty()) return@Canvas
+            val minY = values.min()
+            val maxY = values.max()
+            val rangeY = (maxY - minY).takeIf { it > 0f } ?: 1f
+            val w = size.width
+            val h = size.height
+            val pad = 4.dp.toPx()
+
+            fun xAt(i: Int) = if (values.size == 1) w / 2f
+            else pad + (i.toFloat() / (values.size - 1)) * (w - pad * 2)
+            fun yAt(v: Float) = pad + h - pad - (v - minY) / rangeY * (h - pad * 2)
+
+            // Fill
+            val fillPath = androidx.compose.ui.graphics.Path()
+            values.forEachIndexed { i, v ->
+                if (i == 0) fillPath.moveTo(xAt(i), yAt(v)) else fillPath.lineTo(xAt(i), yAt(v))
+            }
+            fillPath.lineTo(xAt(values.lastIndex), h)
+            fillPath.lineTo(xAt(0), h)
+            fillPath.close()
+            drawPath(fillPath, color = color.copy(alpha = 0.15f))
+
+            // Line
+            val linePath = androidx.compose.ui.graphics.Path()
+            values.forEachIndexed { i, v ->
+                if (i == 0) linePath.moveTo(xAt(i), yAt(v)) else linePath.lineTo(xAt(i), yAt(v))
+            }
+            drawPath(linePath, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+
+            // Last dot
+            drawCircle(color = color, radius = 3.dp.toPx(), center = androidx.compose.ui.geometry.Offset(xAt(values.lastIndex), yAt(values.last())))
+        }
+
+        Spacer(Modifier.height(4.dp))
+        val last = values.lastOrNull() ?: 0f
+        Text(
+            text = formatChartValue(last, unit),
+            fontSize = 9.sp,
+            color = color,
+            maxLines = 1
+        )
     }
 }

@@ -25,6 +25,10 @@ import com.workouttracker.ui.viewmodel.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Colors for program types in bar charts
+private val ColorTypeA = Color(0xFF6C63FF) // purple — same as ColorPrimary
+private val ColorTypeB = Color(0xFF30D158) // green — same as ColorSecondary
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
@@ -48,20 +52,44 @@ fun StatisticsScreen(
             color = ColorOnBackground
         )
 
-        // Tonnage chart
+        // Tonnage bar chart — colored by program type A/B
         StatCard(title = "Тоннаж по тренировкам") {
             if (state.tonnagePoints.isEmpty()) {
                 EmptyChartMessage()
             } else {
-                LineChart(
-                    points = state.tonnagePoints.map { it.date.toFloat() to it.tonnage },
-                    lineColor = ColorPrimary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
+                TypedBarChart(
+                    points = state.tonnagePoints.map { Triple(it.date, it.tonnage, it.programType) },
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
                 )
                 ChartDateLabels(
                     dates = state.tonnagePoints.map { it.date },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Canvas(Modifier.size(10.dp)) { drawCircle(ColorTypeA) }
+                        Text("Тип A", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Canvas(Modifier.size(10.dp)) { drawCircle(ColorTypeB) }
+                        Text("Тип B", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface)
+                    }
+                }
+            }
+        }
+
+        // Weekly volume bar chart
+        StatCard(title = "Объём по неделям") {
+            if (state.weeklyVolumePoints.isEmpty()) {
+                EmptyChartMessage()
+            } else {
+                TypedBarChart(
+                    points = state.weeklyVolumePoints.map { Triple(it.weekStart, it.tonnage, it.programType) },
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                )
+                ChartDateLabels(
+                    dates = state.weeklyVolumePoints.map { it.weekStart },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -282,6 +310,52 @@ fun LineChart(
                 radius = 4.dp.toPx(),
                 center = Offset(xFor(x), yFor(y))
             )
+        }
+    }
+}
+
+/**
+ * Bar chart where each bar is colored by programType ("A" → purple, "B" → green, else gray).
+ * [points] = list of (date/weekStart, value, programType).
+ */
+@Composable
+fun TypedBarChart(
+    points: List<Triple<Long, Float, String>>,
+    modifier: Modifier = Modifier
+) {
+    if (points.isEmpty()) return
+    val maxVal = points.maxOf { it.second }.takeIf { it > 0f } ?: 1f
+
+    Canvas(modifier = modifier) {
+        val padH = 8.dp.toPx()
+        val padV = 12.dp.toPx()
+        val drawWidth = size.width - padH * 2
+        val drawHeight = size.height - padV
+
+        val barWidth = (drawWidth / points.size * 0.6f).coerceAtLeast(4.dp.toPx())
+        val spacing = drawWidth / points.size
+
+        // Horizontal grid
+        repeat(4) { i ->
+            val y = padV + drawHeight * i / 4
+            drawLine(
+                color = ColorSurfaceVariant,
+                start = Offset(padH, y),
+                end = Offset(padH + drawWidth, y),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+
+        points.forEachIndexed { idx, (_, value, type) ->
+            val barColor = when (type) {
+                "A" -> ColorTypeA
+                "B" -> ColorTypeB
+                else -> Color(0xFF3A3A3C)
+            }
+            val barHeight = (value / maxVal) * drawHeight
+            val x = padH + idx * spacing + (spacing - barWidth) / 2
+            val y = padV + drawHeight - barHeight
+            drawRect(color = barColor, topLeft = Offset(x, y), size = Size(barWidth, barHeight))
         }
     }
 }

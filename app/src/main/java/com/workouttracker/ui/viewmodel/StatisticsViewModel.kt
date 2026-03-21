@@ -10,16 +10,19 @@ import com.workouttracker.data.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.workouttracker.domain.usecase.BodyMetricsCalculator
+import java.util.Calendar
 import javax.inject.Inject
-import kotlin.math.log10
 
-data class TonnagePoint(val date: Long, val tonnage: Float)
+data class TonnagePoint(val date: Long, val tonnage: Float, val programType: String = "")
 data class ExerciseProgressPoint(val date: Long, val weight: Float, val e1rm: Float)
 data class BodyWeightPoint(val date: Long, val weight: Float)
 data class BodyFatPoint(val date: Long, val bodyFat: Float)
+data class WeeklyVolumePoint(val weekStart: Long, val tonnage: Float, val programType: String = "")
 
 data class StatisticsUiState(
     val tonnagePoints: List<TonnagePoint> = emptyList(),
+    val weeklyVolumePoints: List<WeeklyVolumePoint> = emptyList(),
     val exerciseNames: List<String> = emptyList(),
     val selectedExercise: String? = null,
     val exerciseProgressPoints: List<ExerciseProgressPoint> = emptyList(),
@@ -71,15 +74,31 @@ class StatisticsViewModel @Inject constructor(
                             if (set.actualWeight > maxWeight) maxWeight = set.actualWeight
                         }
                         if (maxWeight > 0f) {
-                            // e1RM = weight * (1 + reps/30) — Epley formula, use best set
                             val bestSet = sets.maxByOrNull { it.actualWeight }
-                            val e1rm = bestSet?.let { it.actualWeight * (1 + it.actualReps / 30f) } ?: maxWeight
+                            val e1rm = bestSet?.let {
+                                BodyMetricsCalculator.e1rm(it.actualWeight, it.actualReps)
+                            } ?: maxWeight
                             exerciseHistoryMap.getOrPut(ex.name) { mutableListOf() }
                                 .add(ExerciseProgressPoint(session.date, maxWeight, e1rm))
                         }
                     }
-                    tonnagePoints.add(TonnagePoint(session.date, sessionTonnage))
+                    tonnagePoints.add(TonnagePoint(session.date, sessionTonnage, session.programType))
                 }
+
+                // Weekly volume aggregation — sum tonnage per calendar week, pick dominant type
+                val weeklyMap = mutableMapOf<Long, Pair<Float, String>>()
+                tonnagePoints.forEach { point ->
+                    val weekStart = startOfWeek(point.date)
+                    val existing = weeklyMap[weekStart]
+                    weeklyMap[weekStart] = if (existing == null) {
+                        point.tonnage to point.programType
+                    } else {
+                        (existing.first + point.tonnage) to existing.second
+                    }
+                }
+                val weeklyVolumePoints = weeklyMap.entries
+                    .sortedBy { it.key }
+                    .map { (weekStart, pair) -> WeeklyVolumePoint(weekStart, pair.first, pair.second) }
 
                 val exerciseNames = exerciseHistoryMap.keys.toList().sorted()
                 val currentExercise = _state.value.selectedExercise ?: exerciseNames.firstOrNull()
@@ -88,6 +107,7 @@ class StatisticsViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         tonnagePoints = tonnagePoints,
+                        weeklyVolumePoints = weeklyVolumePoints,
                         exerciseNames = exerciseNames,
                         selectedExercise = currentExercise,
                         exerciseProgressPoints = progressPoints
@@ -108,7 +128,7 @@ class StatisticsViewModel @Inject constructor(
                     val sets = sessionRepository.getSetsForExercise(ex.id)
                     val bestSet = sets.maxByOrNull { it.actualWeight }
                     if (bestSet != null && bestSet.actualWeight > 0f) {
-                        val e1rm = bestSet.actualWeight * (1 + bestSet.actualReps / 30f)
+                        val e1rm = BodyMetricsCalculator.e1rm(bestSet.actualWeight, bestSet.actualReps)
                         points.add(ExerciseProgressPoint(session.date, bestSet.actualWeight, e1rm))
                     }
                 }
@@ -117,11 +137,17 @@ class StatisticsViewModel @Inject constructor(
         }
     }
 
-    private fun calcBodyFat(m: BodyMeasurement): Float? {
-        val waist = m.waist ?: return null
-        val neck = m.neck ?: return null
-        val diff = waist - neck
-        if (diff <= 0f || m.height <= 0f) return null
-        return (495.0 / (1.0324 - 0.19077 * log10(diff.toDouble()) + 0.15456 * log10(m.height.toDouble())) - 450.0).toFloat()
+    private fun calcBodyFat(m: BodyMeasurement): Float? =
+        BodyMetricsCalculator.bodyFatNavy(m.waist ?: return null, m.neck ?: return null, m.height)
+
+    private fun startOfWeek(millis: Long): Long {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = millis
+        cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
 }

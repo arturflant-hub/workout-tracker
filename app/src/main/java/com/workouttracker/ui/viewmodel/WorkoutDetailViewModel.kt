@@ -26,7 +26,11 @@ data class ExerciseDetailItem(
     val currentTonnage: Float = 0f,
     val prevTonnage: Float = 0f,
     val currentReps: Int = 0,
-    val prevReps: Int = 0
+    val prevReps: Int = 0,
+    // History sparkline data (last 6 sessions of same type, oldest→newest)
+    val tonnageHistory: List<Float> = emptyList(),
+    val e1rmHistory: List<Float> = emptyList(),
+    val repsHistory: List<Int> = emptyList()
 )
 
 data class WorkoutDetailUiState(
@@ -71,6 +75,23 @@ class WorkoutDetailViewModel @Inject constructor(
                 val prevSets: List<WorkoutSetFact> = if (prevEx != null) {
                     sessionRepository.getSetsForExercise(prevEx.id)
                 } else emptyList()
+
+                // Load last 6 sessions of same exercise for sparkline charts
+                val history = sessionRepository.getHistoryByProgramExercise(ex.programExerciseId)
+                    .take(6)
+                    .reversed() // oldest → newest for chart left→right
+                val tonnageHistory = history.map { hEx ->
+                    val hSets = sessionRepository.getSetsForExercise(hEx.id)
+                    hSets.sumOf { s -> (s.actualWeight * s.actualReps).toDouble() }.toFloat()
+                }
+                val e1rmHistory = history.map { hEx ->
+                    val hSets = sessionRepository.getSetsForExercise(hEx.id)
+                    hSets.maxOfOrNull { s -> s.actualWeight * (1f + s.actualReps / 30f) } ?: 0f
+                }
+                val repsHistory = history.map { hEx ->
+                    val hSets = sessionRepository.getSetsForExercise(hEx.id)
+                    hSets.sumOf { s -> s.actualReps }
+                }
 
                 // e1RM = weight × (1 + reps / 30)
                 val currentE1RM: Float = if (actualSets.isNotEmpty()) {
@@ -134,7 +155,10 @@ class WorkoutDetailViewModel @Inject constructor(
                     currentTonnage = currentTonnage,
                     prevTonnage = prevTonnage,
                     currentReps = currentReps,
-                    prevReps = prevReps
+                    prevReps = prevReps,
+                    tonnageHistory = tonnageHistory,
+                    e1rmHistory = e1rmHistory,
+                    repsHistory = repsHistory
                 )
             }
 

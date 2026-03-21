@@ -12,7 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.math.log10
+import com.workouttracker.domain.usecase.BodyMetricsCalculator
 
 data class DashboardState(
     val nextSession: WorkoutSession? = null,
@@ -100,7 +100,7 @@ class DashboardViewModel @Inject constructor(
                 val waistChange = if (latest?.waist != null && first?.waist != null && latest.id != first.id)
                     latest.waist - first.waist else null
                 val bodyFat = if (latest != null && latest.waist != null && latest.neck != null)
-                    calcBodyFatNavy(latest.waist, latest.neck, latest.height) else null
+                    BodyMetricsCalculator.bodyFatNavy(latest.waist, latest.neck, latest.height) else null
 
                 _state.value = DashboardState(
                     nextSession = nextSession,
@@ -120,9 +120,4 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun calcBodyFatNavy(waist: Float, neck: Float, height: Float): Float? {
-        val diff = waist - neck
-        if (diff <= 0f || height <= 0f) return null
-        return (495f / (1.0324f - 0.19077f * log10(diff.toDouble()) + 0.15456f * log10(height.toDouble())) - 450f).toFloat()
-    }
 }
