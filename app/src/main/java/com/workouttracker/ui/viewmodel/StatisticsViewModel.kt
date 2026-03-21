@@ -137,8 +137,11 @@ class StatisticsViewModel @Inject constructor(
         }
     }
 
-    private fun calcBodyFat(m: BodyMeasurement): Float? =
-        BodyMetricsCalculator.bodyFatNavy(m.waist ?: return null, m.neck ?: return null, m.height)
+    private fun calcBodyFat(m: BodyMeasurement): Float? {
+        val waist = m.waist ?: return null
+        val neck = m.neck ?: return null
+        return BodyMetricsCalculator.bodyFatNavy(waist, neck, m.height)
+    }
 
     private fun startOfWeek(millis: Long): Long {
         val cal = Calendar.getInstance()
