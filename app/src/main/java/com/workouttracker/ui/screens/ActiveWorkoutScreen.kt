@@ -446,28 +446,14 @@ fun ExerciseDetailDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = ColorOnSurface
                         )
-                        // Previous workout data + recommended next weight
-                        exerciseWithSets.recommendation?.let { rec ->
-                            rec.prevWeight?.let { pw ->
-                                Text(
-                                    "Прошлая: ${formatWeight(pw)} кг × ${rec.prevReps} повт · RIR ${rec.prevRir}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ColorOnSurface
-                                )
-                            }
-                            rec.nextWeight?.let { nw ->
-                                val nextColor = when (rec.type) {
-                                    RecommendationType.INCREASE_WEIGHT -> ColorSecondary
-                                    RecommendationType.DECREASE_WEIGHT -> ColorError
-                                    else -> ColorOnSurface
-                                }
-                                Text(
-                                    "Следующий вес: ${formatWeight(nw)} кг",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = nextColor
-                                )
-                            }
+                        // Previous workout data (reference line)
+                        exerciseWithSets.recommendation?.prevWeight?.let { pw ->
+                            val rec = exerciseWithSets.recommendation
+                            Text(
+                                "Прошлая: ${formatWeight(pw)} кг × ${rec.prevReps} повт · RIR ${rec.prevRir}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ColorOnSurface
+                            )
                         }
                     }
                     IconButton(onClick = onDismiss) {
@@ -475,7 +461,65 @@ fun ExerciseDetailDialog(
                     }
                 }
 
-                // ── Recommendation ──
+                // ── Today's goal block ──
+                run {
+                    val rec = exerciseWithSets.recommendation
+                    val todayWeight = rec?.nextWeight ?: exerciseWithSets.exercise.plannedWeight
+                    val repsMin = rec?.targetRepsMin ?: exerciseWithSets.exercise.plannedMinReps
+                    val repsMax = rec?.targetRepsMax ?: exerciseWithSets.exercise.plannedMaxReps
+                    val weightColor = when (rec?.type) {
+                        RecommendationType.INCREASE_WEIGHT -> ColorSecondary
+                        RecommendationType.DECREASE_WEIGHT -> ColorError
+                        else -> ColorOnBackground
+                    }
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = ColorSurfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Text(
+                                "🎯 ЦЕЛЬ СЕГОДНЯ",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ColorOnSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                                Column {
+                                    Text(
+                                        "ВЕС",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ColorOnSurface
+                                    )
+                                    Text(
+                                        "${formatWeight(todayWeight)} кг",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = weightColor
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        "ПОВТОРЫ",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ColorOnSurface
+                                    )
+                                    Text(
+                                        "$repsMin–$repsMax",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ColorPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Recommendation explanation ──
                 exerciseWithSets.recommendation?.let { rec ->
                     val (icon, bgColor) = when (rec.type) {
                         RecommendationType.INCREASE_WEIGHT -> "⬆️" to ColorSecondary.copy(alpha = 0.12f)

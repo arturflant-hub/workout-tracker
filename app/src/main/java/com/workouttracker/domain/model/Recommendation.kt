@@ -15,5 +15,7 @@ data class Recommendation(
     val nextWeight: Float? = null,
     val prevWeight: Float? = null,
     val prevReps: Int? = null,
-    val prevRir: Int? = null
+    val prevRir: Int? = null,
+    val targetRepsMin: Int? = null,
+    val targetRepsMax: Int? = null
 )

@@ -87,6 +87,15 @@ class ActiveWorkoutViewModel @Inject constructor(
 
             repository.getExercisesBySession(sessionId).collect { exercises ->
                 val result = exercises.map { ex ->
+                    // Load recommendation first — needed for pre-filling new sets
+                    val programEx = programRepository.getExerciseById(ex.programExerciseId)
+                    val recommendation = programEx?.let {
+                        try { progressionUseCase.getProgressionRecommendation(it) } catch (_: Exception) { null }
+                    }
+                    val hasPlateau = programEx?.let {
+                        try { progressionUseCase.detectPlateau(it.id) } catch (_: Exception) { false }
+                    } ?: false
+
                     val existingSets = repository.getSetsForExercise(ex.id)
                     val sets = if (existingSets.isNotEmpty()) {
                         existingSets.map { sf ->
@@ -102,25 +111,19 @@ class ActiveWorkoutViewModel @Inject constructor(
                             )
                         }
                     } else {
+                        // Pre-fill with recommended weight/reps when available
+                        val suggestedWeight = recommendation?.nextWeight ?: ex.plannedWeight
+                        val suggestedReps = recommendation?.targetRepsMin ?: ex.plannedMinReps
                         (1..ex.plannedSets).map { idx ->
                             ActiveSetInput(
                                 setIndex = idx,
                                 plannedReps = ex.plannedMinReps,
                                 plannedWeight = ex.plannedWeight,
-                                actualReps = ex.plannedMinReps,
-                                actualWeight = ex.plannedWeight
+                                actualReps = suggestedReps,
+                                actualWeight = suggestedWeight
                             )
                         }
                     }
-
-                    // Load recommendation and plateau status for exercise
-                    val programEx = programRepository.getExerciseById(ex.programExerciseId)
-                    val recommendation = programEx?.let {
-                        try { progressionUseCase.getProgressionRecommendation(it) } catch (_: Exception) { null }
-                    }
-                    val hasPlateau = programEx?.let {
-                        try { progressionUseCase.detectPlateau(it.id) } catch (_: Exception) { false }
-                    } ?: false
 
                     ActiveExerciseWithSets(ex, sets, recommendation, hasPlateau)
                 }

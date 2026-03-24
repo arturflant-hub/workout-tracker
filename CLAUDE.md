@@ -145,6 +145,7 @@ States: active session → today planned → nearest upcoming → empty.
 
 | Дата | Commit | Что сделано | Файлы |
 |------|--------|-------------|-------|
+| 2026-03-24 | feat/ver2 | feat: блок «ЦЕЛЬ СЕГОДНЯ» в диалоге упражнения — вес и повторы для текущей тренировки, предзаполнение сетов рекомендуемыми значениями, targetRepsMin/Max по RIR | Recommendation.kt, ProgressionUseCase.kt, ActiveWorkoutViewModel.kt, ActiveWorkoutScreen.kt |
 | 2026-03-24 | feat/ver2 | feat: рекомендации на карточках тренировки, исправлена логика прогрессии по training_logic.md, детектор плато, данные прошлой тренировки | Recommendation.kt, ProgressionUseCase.kt, SessionRepository.kt, ActiveWorkoutViewModel.kt, ActiveWorkoutScreen.kt |
 | 2026-03-21 | cabef5a | fix: calcBodyFat — expression body с early return заменена на block body | StatisticsViewModel.kt |
 |------|--------|-------------|-------|
