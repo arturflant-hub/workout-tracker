@@ -197,9 +197,11 @@ fun PlannedExerciseCard(item: PlannedExerciseItem) {
                 Spacer(Modifier.height(8.dp))
                 val (icon, color) = when (rec.type) {
                     RecommendationType.INCREASE_WEIGHT -> "⬆ УВЕЛИЧИТЬ ВЕС" to ColorSecondary
+                    RecommendationType.DECREASE_WEIGHT -> "⬇ УМЕНЬШИТЬ ВЕС" to ColorError
                     RecommendationType.INCREASE_REPS -> "👍 РАБОТАТЬ НА ПОВТОРЕНИЯ" to ColorPrimary
                     RecommendationType.SLOW_NEGATIVE -> "⚠ ЗАМЕДЛИТЬ НЕГАТИВ" to ColorOnSurface
                     RecommendationType.ADD_PAUSE -> "⚠ ДОБАВИТЬ ПАУЗУ" to ColorOnSurface
+                    RecommendationType.PLATEAU -> "⚠ ПЛАТО" to ColorError
                 }
                 Text(
                     icon,
