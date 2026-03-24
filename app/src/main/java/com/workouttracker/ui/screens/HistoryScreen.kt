@@ -139,9 +139,11 @@ fun HistoryScreen(
 fun RecommendationCard(type: RecommendationType, text: String) {
     val icon = when (type) {
         RecommendationType.INCREASE_WEIGHT -> Icons.Default.FitnessCenter
+        RecommendationType.DECREASE_WEIGHT -> Icons.Default.FitnessCenter
         RecommendationType.INCREASE_REPS -> Icons.Default.TrendingUp
         RecommendationType.SLOW_NEGATIVE -> Icons.Default.SlowMotionVideo
         RecommendationType.ADD_PAUSE -> Icons.Default.Pause
+        RecommendationType.PLATEAU -> Icons.Default.Pause
     }
     val containerColor = when (type) {
         RecommendationType.INCREASE_WEIGHT -> MaterialTheme.colorScheme.primaryContainer
