@@ -37,7 +37,8 @@ data class ActiveSetInput(
 data class ActiveExerciseWithSets(
     val exercise: WorkoutSessionExercise,
     val sets: List<ActiveSetInput>,
-    val recommendation: Recommendation? = null
+    val recommendation: Recommendation? = null,
+    val hasPlateau: Boolean = false
 )
 
 data class ActiveWorkoutUiState(
@@ -112,13 +113,16 @@ class ActiveWorkoutViewModel @Inject constructor(
                         }
                     }
 
-                    // Load recommendation for exercise
+                    // Load recommendation and plateau status for exercise
                     val programEx = programRepository.getExerciseById(ex.programExerciseId)
                     val recommendation = programEx?.let {
                         try { progressionUseCase.getProgressionRecommendation(it) } catch (_: Exception) { null }
                     }
+                    val hasPlateau = programEx?.let {
+                        try { progressionUseCase.detectPlateau(it.id) } catch (_: Exception) { false }
+                    } ?: false
 
-                    ActiveExerciseWithSets(ex, sets, recommendation)
+                    ActiveExerciseWithSets(ex, sets, recommendation, hasPlateau)
                 }
                 _uiState.update { it.copy(exercisesWithSets = result) }
             }

@@ -80,4 +80,16 @@ class SessionRepository @Inject constructor(
 
     suspend fun getPreviousSessionByType(programType: String, beforeDate: Long): WorkoutSession? =
         sessionDao.getLastDoneSessionByType(programType, beforeDate)
+
+    /**
+     * Returns max actualWeight per session for an exercise, ordered from newest to oldest.
+     * Used for plateau detection (4+ sessions with same weight).
+     */
+    suspend fun getWeightHistoryForExercise(programExerciseId: Long, limit: Int = 4): List<Float> {
+        val history = exerciseDao.getHistoryByProgramExercise(programExerciseId)
+        return history.take(limit).mapNotNull { ex ->
+            val sets = setFactDao.getSetsByExerciseOnce(ex.id)
+            sets.maxOfOrNull { it.actualWeight }
+        }
+    }
 }

@@ -35,6 +35,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.workouttracker.domain.model.Recommendation
 import com.workouttracker.domain.model.RecommendationType
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.ActiveExerciseWithSets
@@ -51,6 +52,9 @@ private fun formatElapsed(secs: Long): String {
     val s = secs % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
 }
+
+private fun formatWeight(w: Float): String =
+    if (w == w.toLong().toFloat()) w.toLong().toString() else "%.1f".format(w)
 
 // ──────────────────────────────────────────────
 //  Main Screen
@@ -254,6 +258,7 @@ fun ExerciseSummaryCard(
     onClick: () -> Unit
 ) {
     val ex = exerciseWithSets.exercise
+    val rec = exerciseWithSets.recommendation
     val doneSets = exerciseWithSets.sets.count { it.isDone }
     val totalSets = exerciseWithSets.sets.size
     val allDone = doneSets == totalSets && totalSets > 0
@@ -263,65 +268,130 @@ fun ExerciseSummaryCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (allDone) ColorSurface else ColorSurface
-        ),
+        colors = CardDefaults.cardColors(containerColor = ColorSurface),
         border = BorderStroke(
             width = 1.dp,
             color = if (allDone) ColorSecondary.copy(alpha = 0.5f) else ColorSurfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // ── Header row: name + sets counter ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     ex.name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = ColorOnBackground,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${ex.plannedWeight}кг",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ColorOnSurface
-                )
+                Spacer(Modifier.width(12.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "$doneSets/$totalSets",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (allDone) ColorSecondary else ColorPrimary
+                    )
+                    Text(
+                        "подходов",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface
+                    )
+                }
+                if (allDone) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Выполнено",
+                        tint = ColorSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            Spacer(Modifier.width(12.dp))
+            // ── Plan line ──
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${formatWeight(ex.plannedWeight)} кг",
+                style = MaterialTheme.typography.bodySmall,
+                color = ColorOnSurface
+            )
 
-            // Sets progress indicator
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // ── Previous workout data ──
+            if (rec?.prevWeight != null) {
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    "$doneSets/$totalSets",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (allDone) ColorSecondary else ColorPrimary
-                )
-                Text(
-                    "подходов",
+                    "Прошлая: ${formatWeight(rec.prevWeight)} кг × ${rec.prevReps} повт · RIR ${rec.prevRir}",
                     style = MaterialTheme.typography.labelSmall,
                     color = ColorOnSurface
                 )
             }
 
-            if (allDone) {
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = "Выполнено",
-                    tint = ColorSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
+            // ── Recommendation badges ──
+            val showBadges = rec != null || exerciseWithSets.hasPlateau
+            if (showBadges) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (exerciseWithSets.hasPlateau) {
+                        RecommendationBadge(
+                            bgColor = ColorError.copy(alpha = 0.15f),
+                            textColor = ColorError,
+                            label = "⚠ Плато"
+                        )
+                    }
+                    if (rec != null) {
+                        val (bg, tc, label) = recommendationBadgeParams(rec)
+                        RecommendationBadge(bgColor = bg, textColor = tc, label = label)
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun RecommendationBadge(bgColor: androidx.compose.ui.graphics.Color, textColor: androidx.compose.ui.graphics.Color, label: String) {
+    Surface(color = bgColor, shape = RoundedCornerShape(6.dp)) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+private data class BadgeParams(
+    val bgColor: androidx.compose.ui.graphics.Color,
+    val textColor: androidx.compose.ui.graphics.Color,
+    val label: String
+)
+
+private fun recommendationBadgeParams(rec: Recommendation): BadgeParams {
+    return when (rec.type) {
+        RecommendationType.INCREASE_WEIGHT -> {
+            val weightStr = rec.nextWeight?.let { " ${formatWeight(it)} кг" } ?: ""
+            BadgeParams(ColorSecondary.copy(alpha = 0.15f), ColorSecondary, "⬆$weightStr")
+        }
+        RecommendationType.DECREASE_WEIGHT -> {
+            val weightStr = rec.nextWeight?.let { " ${formatWeight(it)} кг" } ?: " -5 кг"
+            BadgeParams(ColorError.copy(alpha = 0.15f), ColorError, "⬇$weightStr")
+        }
+        RecommendationType.INCREASE_REPS ->
+            BadgeParams(ColorPrimary.copy(alpha = 0.12f), ColorPrimary, "👍 продолжать")
+        RecommendationType.SLOW_NEGATIVE ->
+            BadgeParams(ColorSurfaceVariant, ColorOnSurface, "🐢 замедлить")
+        RecommendationType.ADD_PAUSE ->
+            BadgeParams(ColorSurfaceVariant, ColorOnSurface, "⏸ с паузой")
+        RecommendationType.PLATEAU ->
+            BadgeParams(ColorError.copy(alpha = 0.15f), ColorError, "⚠ Плато")
     }
 }
 
@@ -372,10 +442,33 @@ fun ExerciseDetailDialog(
                             color = ColorOnBackground
                         )
                         Text(
-                            "План: ${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${ex.plannedWeight}кг",
+                            "План: ${ex.plannedSets}×${ex.plannedMinReps}-${ex.plannedMaxReps} @ ${formatWeight(ex.plannedWeight)} кг",
                             style = MaterialTheme.typography.bodySmall,
                             color = ColorOnSurface
                         )
+                        // Previous workout data + recommended next weight
+                        exerciseWithSets.recommendation?.let { rec ->
+                            rec.prevWeight?.let { pw ->
+                                Text(
+                                    "Прошлая: ${formatWeight(pw)} кг × ${rec.prevReps} повт · RIR ${rec.prevRir}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorOnSurface
+                                )
+                            }
+                            rec.nextWeight?.let { nw ->
+                                val nextColor = when (rec.type) {
+                                    RecommendationType.INCREASE_WEIGHT -> ColorSecondary
+                                    RecommendationType.DECREASE_WEIGHT -> ColorError
+                                    else -> ColorOnSurface
+                                }
+                                Text(
+                                    "Следующий вес: ${formatWeight(nw)} кг",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = nextColor
+                                )
+                            }
+                        }
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, "Закрыть", tint = ColorOnSurface)
@@ -385,9 +478,12 @@ fun ExerciseDetailDialog(
                 // ── Recommendation ──
                 exerciseWithSets.recommendation?.let { rec ->
                     val (icon, bgColor) = when (rec.type) {
-                        RecommendationType.INCREASE_WEIGHT -> "⬆️" to ColorPrimary.copy(alpha = 0.12f)
-                        RecommendationType.INCREASE_REPS -> "👍" to ColorSecondary.copy(alpha = 0.10f)
-                        else -> "⚠️" to ColorError.copy(alpha = 0.10f)
+                        RecommendationType.INCREASE_WEIGHT -> "⬆️" to ColorSecondary.copy(alpha = 0.12f)
+                        RecommendationType.DECREASE_WEIGHT -> "⚠️" to ColorError.copy(alpha = 0.12f)
+                        RecommendationType.INCREASE_REPS -> "👍" to ColorPrimary.copy(alpha = 0.10f)
+                        RecommendationType.PLATEAU -> "⚠️" to ColorError.copy(alpha = 0.12f)
+                        RecommendationType.SLOW_NEGATIVE -> "🐢" to ColorSurfaceVariant
+                        RecommendationType.ADD_PAUSE -> "⏸️" to ColorSurfaceVariant
                     }
                     Surface(
                         modifier = Modifier
