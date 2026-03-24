@@ -36,4 +36,7 @@ interface WorkoutSessionDao {
 
     @Query("SELECT * FROM workout_sessions WHERE programType = :programType AND status = 'DONE' AND date < :beforeDate ORDER BY date DESC LIMIT 1")
     suspend fun getLastDoneSessionByType(programType: String, beforeDate: Long): WorkoutSession?
+
+    @Query("DELETE FROM workout_sessions")
+    suspend fun deleteAll()
 }

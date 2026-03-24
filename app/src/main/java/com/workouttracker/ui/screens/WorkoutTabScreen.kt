@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,7 +34,7 @@ import java.util.*
 import javax.inject.Inject
 
 data class WorkoutTabState(
-    val todaySession: WorkoutSession? = null,
+    val todaySessions: List<WorkoutSession> = emptyList(),
     val activeSession: WorkoutSession? = null,
     val upcomingSessions: List<WorkoutSession> = emptyList()
 )
@@ -63,9 +64,9 @@ class WorkoutTabViewModel @Inject constructor(
                 val todayStart = startOfDay(now)
                 val todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1
 
-                val today = sessions.firstOrNull {
-                    it.date in todayStart..todayEnd && it.status != SessionStatus.SKIPPED
-                }
+                val todayList = sessions
+                    .filter { it.date in todayStart..todayEnd && it.status != SessionStatus.SKIPPED }
+                    .sortedBy { it.date }
                 val active = sessions.firstOrNull { it.status == SessionStatus.IN_PROGRESS }
                 val upcoming = sessions
                     .filter { it.status == SessionStatus.PLANNED && it.date > todayEnd }
@@ -73,7 +74,7 @@ class WorkoutTabViewModel @Inject constructor(
                     .take(5)
 
                 _state.value = WorkoutTabState(
-                    todaySession = today,
+                    todaySessions = todayList,
                     activeSession = active,
                     upcomingSessions = upcoming
                 )
@@ -145,12 +146,12 @@ fun WorkoutTabScreen(
     Scaffold(
         containerColor = ColorBackground,
         floatingActionButton = {
-            if (state.activeSession == null && state.todaySession?.status != SessionStatus.IN_PROGRESS) {
+            if (state.activeSession == null && state.todaySessions.none { it.status == SessionStatus.IN_PROGRESS }) {
                 FloatingActionButton(
                     onClick = {
-                        val today = state.todaySession
-                        if (today != null && today.status == SessionStatus.PLANNED) {
-                            navController.navigate(Screen.ActiveWorkout.createRoute(today.id))
+                        val plannedToday = state.todaySessions.firstOrNull { it.status == SessionStatus.PLANNED }
+                        if (plannedToday != null) {
+                            navController.navigate(Screen.ActiveWorkout.createRoute(plannedToday.id))
                         } else {
                             showProgramDialog = true
                         }
@@ -172,21 +173,12 @@ fun WorkoutTabScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Тренировка",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = ColorOnBackground
-                )
-                IconButton(onClick = { navController.navigate(Screen.History.route) }) {
-                    Icon(Icons.Default.History, "История", tint = ColorOnSurface)
-                }
-            }
+            Text(
+                "Тренировка",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = ColorOnBackground
+            )
         }
 
         // Active session
@@ -220,22 +212,24 @@ fun WorkoutTabScreen(
             }
         }
 
-        // Today's session
+        // Today's sessions
         if (state.activeSession == null) {
-            state.todaySession?.let { session ->
+            if (state.todaySessions.isNotEmpty()) {
                 item {
+                    Text(
+                        "Сегодня",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ColorOnBackground
+                    )
+                }
+                items(state.todaySessions, key = { it.id }) { session ->
                     DarkCard(
                         modifier = Modifier.clickable {
                             navController.navigate(Screen.WorkoutDetail.createRoute(session.id))
                         }
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "Сегодня",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = ColorPrimary
-                            )
-                            Spacer(Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -259,8 +253,12 @@ fun WorkoutTabScreen(
                                         SessionStatus.DONE -> Badge(containerColor = ColorSecondary) {
                                             Text("Завершена", modifier = Modifier.padding(horizontal = 8.dp))
                                         }
+                                        SessionStatus.IN_PROGRESS -> Badge(containerColor = Color(0xFFFF9F0A)) {
+                                            Text("В процессе", modifier = Modifier.padding(horizontal = 8.dp))
+                                        }
                                         else -> {}
                                     }
+                                    Spacer(Modifier.width(4.dp))
                                     Icon(
                                         Icons.Default.ChevronRight,
                                         contentDescription = null,
@@ -288,10 +286,32 @@ fun WorkoutTabScreen(
                                     }
                                 }
                             }
+                            if (session.status == SessionStatus.DONE) {
+                                Spacer(Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = { navController.navigate(Screen.ActiveWorkout.createRoute(session.id)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    border = BorderStroke(1.dp, ColorSurfaceVariant),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorOnSurface)
+                                ) {
+                                    Text("Редактировать")
+                                }
+                            }
+                            if (session.status == SessionStatus.IN_PROGRESS) {
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = { navController.navigate(Screen.ActiveWorkout.createRoute(session.id)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ColorSecondary),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Продолжить", fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
-            } ?: run {
+            } else {
                 // No today's session — show nearest upcoming session
                 val nearest = state.upcomingSessions.firstOrNull()
                 item {

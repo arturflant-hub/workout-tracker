@@ -83,12 +83,16 @@ fun ActiveWorkoutScreen(
             restTimerRunning = uiState.restTimerRunning,
             restTimerSeconds = uiState.restTimerSeconds,
             restTimerDuration = uiState.restTimerDuration,
+            isEditMode = uiState.isEditMode,
             onSkipRest = { viewModel.skipRestTimer() },
             onSetChanged = { setIdx, updated -> viewModel.updateSetInput(selectedIdx, setIdx, updated) },
             onSetDone = { setIdx, updated ->
                 viewModel.updateSetInput(selectedIdx, setIdx, updated.copy(isDone = true))
                 viewModel.markSetDone(uiState.exercisesWithSets[selectedIdx].exercise.id, updated)
             },
+            onAddSet = { viewModel.addSet(selectedIdx) },
+            onCommentChanged = { comment -> viewModel.updateComment(selectedIdx, comment) },
+            onSaveAll = { viewModel.saveAllSets(selectedIdx) },
             onDismiss = { viewModel.selectExercise(null) }
         )
     }
@@ -100,33 +104,42 @@ fun ActiveWorkoutScreen(
                 title = {
                     Column {
                         Text(
-                            "Тренировка ${uiState.session?.programType ?: ""}",
+                            if (uiState.isEditMode) "Редактирование тренировки"
+                            else "Тренировка ${uiState.session?.programType ?: ""}",
                             color = ColorOnBackground,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        if (!uiState.isEditMode) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    "${uiState.exercisesWithSets.size} упражнений",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorOnSurface
+                                )
+                                Text("·", color = ColorOnSurface, style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    formatElapsed(uiState.elapsedSeconds),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (uiState.isPaused) ColorOnSurface else ColorPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (uiState.isPaused) {
+                                    Text(
+                                        "⏸ пауза",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ColorOnSurface
+                                    )
+                                }
+                            }
+                        } else {
                             Text(
                                 "${uiState.exercisesWithSets.size} упражнений",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ColorOnSurface
                             )
-                            Text("·", color = ColorOnSurface, style = MaterialTheme.typography.labelSmall)
-                            Text(
-                                formatElapsed(uiState.elapsedSeconds),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (uiState.isPaused) ColorOnSurface else ColorPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (uiState.isPaused) {
-                                Text(
-                                    "⏸ пауза",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ColorOnSurface
-                                )
-                            }
                         }
                     }
                 },
@@ -155,45 +168,62 @@ fun ActiveWorkoutScreen(
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Pause / Resume button
-                        OutlinedButton(
-                            onClick = {
-                                if (uiState.isPaused) viewModel.resumeWorkout()
-                                else viewModel.pauseWorkout()
-                            },
-                            modifier = Modifier.weight(1f),
-                            border = BorderStroke(1.dp, ColorSurfaceVariant),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = if (uiState.isPaused) ColorSecondary else ColorOnSurface
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                if (uiState.isPaused) "Продолжить" else "Пауза",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                        if (uiState.isEditMode) {
+                            // Edit mode: single "Готово" button
+                            Button(
+                                onClick = { navController.popBackStack() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Готово",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            // Normal mode: Pause + Finish
+                            OutlinedButton(
+                                onClick = {
+                                    if (uiState.isPaused) viewModel.resumeWorkout()
+                                    else viewModel.pauseWorkout()
+                                },
+                                modifier = Modifier.weight(1f),
+                                border = BorderStroke(1.dp, ColorSurfaceVariant),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (uiState.isPaused) ColorSecondary else ColorOnSurface
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    if (uiState.isPaused) "Продолжить" else "Пауза",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
 
-                        // Finish button
-                        Button(
-                            onClick = { showCompleteDialog = true },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = ColorSecondary),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "Завершить",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Button(
+                                onClick = { showCompleteDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = ColorSecondary),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Завершить",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -334,7 +364,7 @@ fun ExerciseSummaryCard(
             }
 
             // ── Recommendation badges ──
-            val showBadges = rec != null || exerciseWithSets.hasPlateau
+            val showBadges = rec != null || exerciseWithSets.hasPlateau || exerciseWithSets.prevComment != null
             if (showBadges) {
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -348,6 +378,13 @@ fun ExerciseSummaryCard(
                     if (rec != null) {
                         val (bg, tc, label) = recommendationBadgeParams(rec)
                         RecommendationBadge(bgColor = bg, textColor = tc, label = label)
+                    }
+                    if (exerciseWithSets.prevComment != null) {
+                        RecommendationBadge(
+                            bgColor = ColorSurfaceVariant,
+                            textColor = ColorOnSurface,
+                            label = "💬 заметка"
+                        )
                     }
                 }
             }
@@ -406,13 +443,21 @@ fun ExerciseDetailDialog(
     restTimerRunning: Boolean,
     restTimerSeconds: Int,
     restTimerDuration: Int,
+    isEditMode: Boolean = false,
     onSkipRest: () -> Unit,
     onSetChanged: (Int, ActiveSetInput) -> Unit,
     onSetDone: (Int, ActiveSetInput) -> Unit,
+    onAddSet: () -> Unit = {},
+    onCommentChanged: (String) -> Unit = {},
+    onSaveAll: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val ex = exerciseWithSets.exercise
     var localSets by remember(exerciseWithSets.sets) { mutableStateOf(exerciseWithSets.sets) }
+    val originalSets = remember { exerciseWithSets.sets.toList() }
+    var commentText by remember(exerciseWithSets.currentComment) { mutableStateOf(exerciseWithSets.currentComment) }
+    val originalComment = remember { exerciseWithSets.currentComment }
+    val hasChanges = localSets != originalSets || commentText != originalComment
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -514,6 +559,19 @@ fun ExerciseDetailDialog(
                                         color = ColorPrimary
                                     )
                                 }
+                                Column {
+                                    Text(
+                                        "RIR",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ColorOnSurface
+                                    )
+                                    Text(
+                                        "2",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ColorOnBackground
+                                    )
+                                }
                             }
                         }
                     }
@@ -609,7 +667,89 @@ fun ExerciseDetailDialog(
                             }
                         )
                     }
+                    // Add set button (edit mode)
+                    if (isEditMode) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onAddSet,
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, ColorPrimary),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorPrimary),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("+ Добавить подход", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+
+                    // Comment section
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(color = ColorSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "💬 Комментарий",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (exerciseWithSets.prevComment != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Прошлый раз: ${exerciseWithSets.prevComment}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = commentText,
+                        onValueChange = { v ->
+                            commentText = v
+                            onCommentChanged(v)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                "Заметки к упражнению...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ColorOnSurface.copy(alpha = 0.4f)
+                            )
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ColorPrimary,
+                            unfocusedBorderColor = ColorSurfaceVariant,
+                            focusedTextColor = ColorOnBackground,
+                            unfocusedTextColor = ColorOnBackground,
+                            cursorColor = ColorPrimary
+                        ),
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        minLines = 2,
+                        maxLines = 4
+                    )
                     Spacer(Modifier.height(16.dp))
+                }
+
+                // ── Save button (shown when data was changed) ──
+                if (hasChanges) {
+                    HorizontalDivider(color = ColorSurfaceVariant)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                onSaveAll()
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Сохранить изменения", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         }

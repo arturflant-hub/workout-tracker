@@ -20,4 +20,7 @@ interface BodyMeasurementDao {
 
     @Delete
     suspend fun delete(measurement: BodyMeasurement)
+
+    @Query("DELETE FROM body_measurements")
+    suspend fun deleteAll()
 }

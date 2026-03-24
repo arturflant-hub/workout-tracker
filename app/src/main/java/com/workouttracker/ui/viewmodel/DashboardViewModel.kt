@@ -18,11 +18,13 @@ data class DashboardState(
     val nextSession: WorkoutSession? = null,
     val nextSessionExercises: List<WorkoutSessionExercise> = emptyList(),
     val lastSession: WorkoutSession? = null,
+    val lastDaySessionCount: Int = 0,
     val lastSessionTonnage: Float = 0f,
     val currentWeight: Float? = null,
     val weightChange: Float? = null,
     val waistChange: Float? = null,
     val bodyFatPercent: Float? = null,
+    val bodyFatChange: Float? = null,
     val totalTonnage: Float = 0f,
     val workoutCount: Int = 0,
     val avgRir: Float? = null,
@@ -41,6 +43,16 @@ class DashboardViewModel @Inject constructor(
 
     init {
         loadDashboard()
+    }
+
+    private fun dayStart(millis: Long): Long {
+        val c = java.util.Calendar.getInstance()
+        c.timeInMillis = millis
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        c.set(java.util.Calendar.MINUTE, 0)
+        c.set(java.util.Calendar.SECOND, 0)
+        c.set(java.util.Calendar.MILLISECOND, 0)
+        return c.timeInMillis
     }
 
     private fun loadDashboard() {
@@ -63,12 +75,21 @@ class DashboardViewModel @Inject constructor(
                     .filter { it.status == SessionStatus.DONE }
                     .maxByOrNull { it.date }
 
+                // All sessions on the same calendar day as the last session
+                val lastDayStart = lastSession?.let { dayStart(it.date) }
+                val lastDayEnd = lastDayStart?.let { it + 24 * 60 * 60 * 1000L - 1 }
+                val lastDaySessions = if (lastDayStart != null && lastDayEnd != null) {
+                    allSessions.filter {
+                        it.status == SessionStatus.DONE && it.date in lastDayStart..lastDayEnd
+                    }
+                } else emptyList()
+
                 val doneSessions = allSessions.filter { it.status == SessionStatus.DONE }
                 val workoutCount = doneSessions.size
 
                 // Compute tonnage per session
                 var totalTonnage = 0f
-                var lastSessionTonnage = 0f
+                var lastDayTonnage = 0f
                 var totalRir = 0f
                 var rirCount = 0
 
@@ -79,14 +100,13 @@ class DashboardViewModel @Inject constructor(
                         val sets = sessionRepository.getSetsForExercise(ex.id)
                         sets.forEach { set ->
                             sessionTonnage += set.actualReps * set.actualWeight
-                            // RIR approximation: max_reps - actual_reps (if planned known)
                             val rir = (ex.plannedMaxReps - set.actualReps).coerceAtLeast(0)
                             totalRir += rir
                             rirCount++
                         }
                     }
                     totalTonnage += sessionTonnage
-                    if (session.id == lastSession?.id) lastSessionTonnage = sessionTonnage
+                    if (lastDaySessions.any { it.id == session.id }) lastDayTonnage += sessionTonnage
                 }
 
                 val avgVolume = if (workoutCount > 0) totalTonnage / workoutCount else null
@@ -107,16 +127,22 @@ class DashboardViewModel @Inject constructor(
                     latest.waist - first.waist else null
                 val bodyFat = if (latest != null && latest.waist != null && latest.neck != null)
                     BodyMetricsCalculator.bodyFatNavy(latest.waist, latest.neck, latest.height) else null
+                val firstBodyFat = if (first != null && first.waist != null && first.neck != null)
+                    BodyMetricsCalculator.bodyFatNavy(first.waist!!, first.neck!!, first.height) else null
+                val bodyFatChange = if (bodyFat != null && firstBodyFat != null && latest?.id != first?.id)
+                    bodyFat - firstBodyFat else null
 
                 _state.value = DashboardState(
                     nextSession = nextSession,
                     nextSessionExercises = nextSessionExercises,
                     lastSession = lastSession,
-                    lastSessionTonnage = lastSessionTonnage,
+                    lastDaySessionCount = lastDaySessions.size,
+                    lastSessionTonnage = lastDayTonnage,
                     currentWeight = currentWeight,
                     weightChange = weightChange,
                     waistChange = waistChange,
                     bodyFatPercent = bodyFat,
+                    bodyFatChange = bodyFatChange,
                     totalTonnage = totalTonnage,
                     workoutCount = workoutCount,
                     avgRir = avgRir,

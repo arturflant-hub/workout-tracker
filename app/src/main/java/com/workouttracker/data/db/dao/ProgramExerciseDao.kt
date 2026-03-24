@@ -26,4 +26,7 @@ interface ProgramExerciseDao {
 
     @Query("DELETE FROM program_exercises WHERE programId = :programId")
     suspend fun deleteAllForProgram(programId: Long)
+
+    @Query("DELETE FROM program_exercises")
+    suspend fun deleteAll()
 }

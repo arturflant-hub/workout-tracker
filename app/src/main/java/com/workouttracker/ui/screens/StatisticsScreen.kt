@@ -2,15 +2,23 @@ package com.workouttracker.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -18,41 +26,104 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.workouttracker.data.db.entities.SessionStatus
+import com.workouttracker.ui.navigation.Screen
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.*
 import java.text.SimpleDateFormat
 import java.util.*
 
 // Colors for program types in bar charts
-private val ColorTypeA = Color(0xFF6C63FF) // purple — same as ColorPrimary
-private val ColorTypeB = Color(0xFF30D158) // green — same as ColorSecondary
+private val ColorTypeA = Color(0xFF6C63FF)
+private val ColorTypeB = Color(0xFF30D158)
+
+// ──────────────────────────────────────────────
+//  Root screen with tab navigation
+// ──────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
+    navController: NavController,
     viewModel: StatisticsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Графики", "Календарь", "История")
 
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ColorBackground)
+    ) {
+        // Sticky header: title + tab bar
+        Surface(color = ColorSurface, shadowElevation = 0.dp) {
+            Column {
+                Text(
+                    "Статистика",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorOnBackground,
+                    modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 8.dp)
+                )
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = ColorSurface,
+                    contentColor = ColorPrimary,
+                    divider = { HorizontalDivider(color = ColorSurfaceVariant) }
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = {
+                                Text(
+                                    title,
+                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold
+                                                 else FontWeight.Normal,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            },
+                            selectedContentColor = ColorPrimary,
+                            unselectedContentColor = ColorOnSurface
+                        )
+                    }
+                }
+            }
+        }
+
+        when (selectedTab) {
+            0 -> ChartsTabContent(state = state, viewModel = viewModel)
+            1 -> CalendarTabContent(navController = navController)
+            2 -> HistoryTabContent(navController = navController)
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Tab 0 — Charts
+// ──────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChartsTabContent(
+    state: StatisticsUiState,
+    viewModel: StatisticsViewModel
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(4.dp))
 
-        Text(
-            "Статистика",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = ColorOnBackground
-        )
-
-        // Tonnage bar chart — colored by program type A/B
         StatCard(title = "Тоннаж по тренировкам") {
             if (state.tonnagePoints.isEmpty()) {
                 EmptyChartMessage()
@@ -67,11 +138,17 @@ fun StatisticsScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Canvas(Modifier.size(10.dp)) { drawCircle(ColorTypeA) }
                         Text("Тип A", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Canvas(Modifier.size(10.dp)) { drawCircle(ColorTypeB) }
                         Text("Тип B", style = MaterialTheme.typography.labelSmall, color = ColorOnSurface)
                     }
@@ -79,7 +156,6 @@ fun StatisticsScreen(
             }
         }
 
-        // Weekly volume bar chart
         StatCard(title = "Объём по неделям") {
             if (state.weeklyVolumePoints.isEmpty()) {
                 EmptyChartMessage()
@@ -95,7 +171,6 @@ fun StatisticsScreen(
             }
         }
 
-        // Exercise progress
         StatCard(title = "Прогресс по упражнению") {
             if (state.exerciseNames.isEmpty()) {
                 EmptyChartMessage()
@@ -117,8 +192,7 @@ fun StatisticsScreen(
                             focusedBorderColor = ColorPrimary,
                             unfocusedBorderColor = ColorSurfaceVariant,
                             focusedTextColor = ColorOnBackground,
-                            unfocusedTextColor = ColorOnBackground,
-                            cursorColor = ColorPrimary
+                            unfocusedTextColor = ColorOnBackground
                         )
                     )
                     ExposedDropdownMenu(
@@ -144,9 +218,7 @@ fun StatisticsScreen(
                     LineChart(
                         points = state.exerciseProgressPoints.map { it.date.toFloat() to it.e1rm },
                         lineColor = ColorSecondary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
+                        modifier = Modifier.fillMaxWidth().height(160.dp)
                     )
                     ChartDateLabels(
                         dates = state.exerciseProgressPoints.map { it.date },
@@ -162,7 +234,6 @@ fun StatisticsScreen(
             }
         }
 
-        // Body weight chart
         StatCard(title = "Динамика веса тела") {
             if (state.bodyWeightPoints.isEmpty()) {
                 EmptyChartMessage()
@@ -170,9 +241,7 @@ fun StatisticsScreen(
                 LineChart(
                     points = state.bodyWeightPoints.map { it.date.toFloat() to it.weight },
                     lineColor = ColorPrimary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
                 )
                 ChartDateLabels(
                     dates = state.bodyWeightPoints.map { it.date },
@@ -181,7 +250,6 @@ fun StatisticsScreen(
             }
         }
 
-        // Body fat chart
         StatCard(title = "Динамика % жира (Navy)") {
             if (state.bodyFatPoints.isEmpty()) {
                 EmptyChartMessage("Добавьте замеры талии и шеи в разделе Тело")
@@ -189,9 +257,7 @@ fun StatisticsScreen(
                 LineChart(
                     points = state.bodyFatPoints.map { it.date.toFloat() to it.bodyFat },
                     lineColor = ColorError,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
                 )
                 ChartDateLabels(
                     dates = state.bodyFatPoints.map { it.date },
@@ -203,6 +269,779 @@ fun StatisticsScreen(
         Spacer(Modifier.height(80.dp))
     }
 }
+
+// ──────────────────────────────────────────────
+//  Tab 1 — Calendar (month view)
+// ──────────────────────────────────────────────
+
+@Composable
+private fun CalendarTabContent(
+    navController: NavController,
+    viewModel: ScheduleViewModel = hiltViewModel()
+) {
+    var monthOffset by remember { mutableStateOf(0) }
+    val today = remember { calStartOfDay(System.currentTimeMillis()) }
+
+    // Compute month range
+    val (monthStart, monthEnd, monthLabel, dayCells) = remember(monthOffset) {
+        val c = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            add(Calendar.MONTH, monthOffset)
+        }
+        val start = c.timeInMillis
+        val label = SimpleDateFormat("LLLL yyyy", Locale("ru"))
+            .format(Date(start))
+            .replaceFirstChar { it.uppercase() }
+
+        // Build grid cells (Mon-first, null = padding)
+        val daysInMonth = c.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val firstDow = c.get(Calendar.DAY_OF_WEEK)
+        val offset = if (firstDow == Calendar.SUNDAY) 6 else firstDow - 2
+        val cells = buildList<Long?> {
+            repeat(offset) { add(null) }
+            repeat(daysInMonth) { day ->
+                c.set(Calendar.DAY_OF_MONTH, day + 1)
+                add(c.timeInMillis)
+            }
+            while (size % 7 != 0) add(null)
+        }
+
+        c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH))
+        c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59); c.set(Calendar.SECOND, 59)
+        val end = c.timeInMillis
+
+        CalendarMonthData(start, end, label, cells)
+    }
+
+    val sessions by viewModel.getSessionsInRange(monthStart, monthEnd).collectAsState(emptyList())
+    val doneSessions = sessions.filter { it.status == SessionStatus.DONE }
+    val dayNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Month navigation header
+        Surface(color = ColorSurface) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = { monthOffset-- }) {
+                    Icon(Icons.Default.ChevronLeft, "Предыдущий месяц", tint = ColorOnSurface)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        monthLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ColorOnBackground
+                    )
+                    if (monthOffset != 0) {
+                        Text(
+                            "Нажмите для возврата к текущему",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ColorOnSurface,
+                            modifier = Modifier.clickable { monthOffset = 0 }
+                        )
+                    }
+                }
+                IconButton(onClick = { monthOffset++ }) {
+                    Icon(Icons.Default.ChevronRight, "Следующий месяц", tint = ColorOnSurface)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Day headers
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                dayNames.forEach { name ->
+                    Text(
+                        name,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Calendar grid
+            val weeks = dayCells.chunked(7)
+            weeks.forEach { week ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                ) {
+                    week.forEach { dayTimestamp ->
+                        val session = dayTimestamp?.let { ts ->
+                            sessions.find { calStartOfDay(it.date) == ts }
+                        }
+                        val isToday = dayTimestamp == today
+                        CalendarDayCell(
+                            timestamp = dayTimestamp,
+                            session = session,
+                            isToday = isToday,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                session?.let {
+                                    navController.navigate(Screen.WorkoutDetail.createRoute(it.id))
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(
+                color = ColorSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            // Session list for the month
+            if (sessions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📅", fontSize = 36.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Тренировок в этом месяце нет",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ColorOnSurface
+                        )
+                    }
+                }
+            } else {
+                // Stats summary
+                val doneCnt = sessions.count { it.status == SessionStatus.DONE }
+                val plannedCnt = sessions.count { it.status == SessionStatus.PLANNED }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (doneCnt > 0) {
+                        Surface(
+                            color = ColorSecondary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "$doneCnt",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ColorSecondary
+                                )
+                                Text(
+                                    "выполнено",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorOnSurface
+                                )
+                            }
+                        }
+                    }
+                    if (plannedCnt > 0) {
+                        Surface(
+                            color = ColorPrimary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "$plannedCnt",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ColorPrimary
+                                )
+                                Text(
+                                    "запланировано",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorOnSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Sessions list
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    sessions.sortedBy { it.date }.forEach { session ->
+                        CalendarSessionRow(
+                            session = session,
+                            onClick = {
+                                navController.navigate(Screen.WorkoutDetail.createRoute(session.id))
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(80.dp))
+                }
+            }
+        }
+    }
+}
+
+private data class CalendarMonthData(
+    val monthStart: Long,
+    val monthEnd: Long,
+    val label: String,
+    val dayCells: List<Long?>
+)
+
+@Composable
+private fun CalendarDayCell(
+    timestamp: Long?,
+    session: com.workouttracker.data.db.entities.WorkoutSession?,
+    isToday: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val bgColor = when {
+        session?.status == SessionStatus.DONE -> ColorSecondary
+        session?.status == SessionStatus.IN_PROGRESS -> Color(0xFFFF9F0A)
+        session != null -> ColorPrimary
+        isToday -> ColorSurfaceVariant
+        else -> Color.Transparent
+    }
+    val textColor = when {
+        session != null -> Color.White
+        isToday -> ColorPrimary
+        else -> ColorOnBackground
+    }
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .padding(3.dp)
+            .clip(CircleShape)
+            .background(bgColor)
+            .clickable(enabled = timestamp != null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (timestamp != null) {
+            val dayNum = SimpleDateFormat("d", Locale.getDefault()).format(Date(timestamp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    dayNum,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isToday || session != null) FontWeight.Bold else FontWeight.Normal,
+                    color = textColor
+                )
+                if (session != null) {
+                    Text(
+                        session.programType,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        color = textColor.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarSessionRow(
+    session: com.workouttracker.data.db.entities.WorkoutSession,
+    onClick: () -> Unit
+) {
+    val sdf = remember { SimpleDateFormat("EEE, d MMM", Locale("ru")) }
+    val (statusColor, statusLabel) = when (session.status) {
+        SessionStatus.DONE -> ColorSecondary to "✓ Выполнена"
+        SessionStatus.SKIPPED -> ColorError to "Пропущена"
+        SessionStatus.PLANNED -> ColorPrimary to "Запланирована"
+        SessionStatus.IN_PROGRESS -> Color(0xFFFF9F0A) to "В процессе"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = ColorSurface),
+        border = BorderStroke(1.dp, ColorSurfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    sdf.format(Date(session.date)).replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ColorOnBackground
+                )
+                Text(
+                    "Тренировка ${session.programType}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ColorOnSurface
+                )
+            }
+            Surface(
+                color = statusColor.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    statusLabel,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+private fun calStartOfDay(millis: Long): Long {
+    val c = Calendar.getInstance()
+    c.timeInMillis = millis
+    c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+    c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+    return c.timeInMillis
+}
+
+// ──────────────────────────────────────────────
+//  Tab 2 — History
+// ──────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryTabContent(
+    navController: NavController,
+    viewModel: HistoryViewModel = hiltViewModel()
+) {
+    val programs by viewModel.programs.collectAsState()
+    val selectedProgramId by viewModel.selectedProgramId.collectAsState()
+    val exercises by viewModel.exercises.collectAsState()
+    val selectedExercise by viewModel.selectedExercise.collectAsState()
+    val history by viewModel.history.collectAsState()
+    val completedSessions by viewModel.completedSessions.collectAsState()
+
+    var historyMode by remember { mutableStateOf(0) } // 0 = Тренировки, 1 = Упражнения
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        // ── Mode toggle ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("По тренировкам", "По упражнениям").forEachIndexed { idx, label ->
+                FilterChip(
+                    selected = historyMode == idx,
+                    onClick = { historyMode = idx },
+                    label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = ColorPrimary.copy(alpha = 0.18f),
+                        selectedLabelColor = ColorPrimary,
+                        containerColor = ColorSurfaceVariant,
+                        labelColor = ColorOnSurface
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = historyMode == idx,
+                        selectedBorderColor = ColorPrimary.copy(alpha = 0.4f),
+                        borderColor = ColorSurfaceVariant
+                    )
+                )
+            }
+        }
+        HorizontalDivider(color = ColorSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+
+        if (historyMode == 0) {
+            // ── Sessions list ──
+            if (completedSessions.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Text("🏋️", fontSize = 48.sp)
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Нет завершённых тренировок",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ColorOnSurface,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(completedSessions, key = { it.id }) { session ->
+                        CalendarSessionRow(
+                            session = session,
+                            onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(session.id)) }
+                        )
+                    }
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            }
+        } else {
+
+        // ── Program filter chips ──
+        if (programs.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                programs.forEach { program ->
+                    FilterChip(
+                        selected = program.id == selectedProgramId,
+                        onClick = { viewModel.selectProgram(program.id) },
+                        label = { Text("${program.type}: ${program.name}") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ColorPrimary.copy(alpha = 0.18f),
+                            selectedLabelColor = ColorPrimary,
+                            containerColor = ColorSurfaceVariant,
+                            labelColor = ColorOnSurface
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = program.id == selectedProgramId,
+                            selectedBorderColor = ColorPrimary.copy(alpha = 0.4f),
+                            borderColor = ColorSurfaceVariant
+                        )
+                    )
+                }
+            }
+        }
+
+        // ── Exercise filter chips ──
+        if (exercises.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                exercises.forEach { ex ->
+                    FilterChip(
+                        selected = selectedExercise?.id == ex.id,
+                        onClick = { viewModel.loadHistory(ex) },
+                        label = { Text(ex.name, maxLines = 1) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ColorSecondary.copy(alpha = 0.18f),
+                            selectedLabelColor = ColorSecondary,
+                            containerColor = ColorSurfaceVariant,
+                            labelColor = ColorOnSurface
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedExercise?.id == ex.id,
+                            selectedBorderColor = ColorSecondary.copy(alpha = 0.4f),
+                            borderColor = ColorSurfaceVariant
+                        )
+                    )
+                }
+            }
+            HorizontalDivider(
+                color = ColorSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+
+        // ── Content ──
+        if (history == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Text("📋", fontSize = 48.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        when {
+                            programs.isEmpty() -> "Нет данных — добавьте программу тренировок"
+                            selectedProgramId == null -> "Выберите программу выше"
+                            exercises.isEmpty() -> "В программе нет упражнений"
+                            else -> "Выберите упражнение для просмотра истории"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ColorOnSurface,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            history?.let { h ->
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Exercise title
+                    item {
+                        Text(
+                            h.programExercise.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorOnBackground
+                        )
+                        Text(
+                            "План: ${h.programExercise.sets}×${h.programExercise.minReps}–${h.programExercise.maxReps}" +
+                            " @ ${h.programExercise.startWeight} кг",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface
+                        )
+                    }
+
+                    // Recommendation
+                    h.recommendation?.let { rec ->
+                        item {
+                            val (bgColor, accentColor, label) = when (rec.type) {
+                                com.workouttracker.domain.model.RecommendationType.INCREASE_WEIGHT ->
+                                    Triple(ColorSecondary.copy(alpha = 0.12f), ColorSecondary, "↑ Увеличить вес")
+                                com.workouttracker.domain.model.RecommendationType.DECREASE_WEIGHT ->
+                                    Triple(ColorError.copy(alpha = 0.12f), ColorError, "↓ Снизить вес")
+                                com.workouttracker.domain.model.RecommendationType.INCREASE_REPS ->
+                                    Triple(ColorPrimary.copy(alpha = 0.10f), ColorPrimary, "→ Добавить повторения")
+                                com.workouttracker.domain.model.RecommendationType.SLOW_NEGATIVE ->
+                                    Triple(ColorSurfaceVariant, ColorOnSurface, "⏱ Медленный негатив")
+                                com.workouttracker.domain.model.RecommendationType.ADD_PAUSE ->
+                                    Triple(ColorSurfaceVariant, ColorOnSurface, "⏸ Добавить паузу")
+                                com.workouttracker.domain.model.RecommendationType.PLATEAU ->
+                                    Triple(ColorSurfaceVariant, ColorOnSurface, "↔ Плато")
+                            }
+                            Surface(
+                                color = bgColor,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        "Рекомендация на следующую тренировку",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ColorOnSurface
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accentColor
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        rec.text,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ColorOnBackground
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (h.sessions.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "Нет завершённых тренировок по этому упражнению",
+                                    color = ColorOnSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        items(h.sessions, key = { it.sessionExercise.id }) { entry ->
+                            HistoryEntryCard(entry = entry)
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            }
+        } // end if (history == null) else
+        } // end else (exercises mode, historyMode != 0)
+    }
+}
+
+@Composable
+private fun HistoryEntryCard(entry: HistorySessionEntry) {
+    val sdf = remember { SimpleDateFormat("d MMM yyyy, EEE", Locale("ru")) }
+    val ex = entry.sessionExercise
+    val sets = entry.sets
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = ColorSurface),
+        border = BorderStroke(1.dp, ColorSurfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Date header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (entry.sessionDate > 0L)
+                        sdf.format(Date(entry.sessionDate)).replaceFirstChar { it.uppercase() }
+                    else
+                        "Дата неизвестна",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ColorPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                // Volume summary
+                if (sets.isNotEmpty()) {
+                    val maxWeight = sets.maxOf { it.actualWeight }
+                    val totalReps = sets.sumOf { it.actualReps }
+                    Text(
+                        "${formatW(maxWeight)} кг · $totalReps повт",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface
+                    )
+                }
+            }
+
+            if (sets.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                // Column headers
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Подход",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "Вес",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "Повт",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "RIR",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ColorOnSurface,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.End
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                sets.forEach { set ->
+                    val hitTarget = set.actualReps >= ex.plannedMinReps
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "№${set.setIndex}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${formatW(set.actualWeight)} кг",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = ColorOnBackground,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "${set.actualReps}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hitTarget) ColorSecondary else ColorError,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "${set.rir}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+
+                // Comment if present
+                if (ex.comment.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    HorizontalDivider(color = ColorSurfaceVariant)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "💬 ${ex.comment}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ColorOnSurface
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Данные не записаны",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ColorOnSurface
+                )
+            }
+        }
+    }
+}
+
+private fun formatW(w: Float): String =
+    if (w == w.toLong().toFloat()) w.toLong().toString() else "%.1f".format(w)
+
+// ──────────────────────────────────────────────
+//  Shared composables (charts, cards)
+// ──────────────────────────────────────────────
 
 @Composable
 fun StatCard(
@@ -232,9 +1071,7 @@ fun StatCard(
 @Composable
 fun EmptyChartMessage(text: String = "Недостаточно данных") {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp),
+        modifier = Modifier.fillMaxWidth().height(100.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = ColorOnSurface)
@@ -248,7 +1085,6 @@ fun LineChart(
     modifier: Modifier = Modifier
 ) {
     if (points.size < 2) {
-        // Draw single point
         Canvas(modifier = modifier) {
             drawCircle(color = lineColor, radius = 6.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
         }
@@ -270,7 +1106,6 @@ fun LineChart(
         fun xFor(x: Float) = padding + (x - minX) / rangeX * drawWidth
         fun yFor(y: Float) = padding + drawHeight - (y - minY) / rangeY * drawHeight
 
-        // Grid lines
         val gridLines = 4
         repeat(gridLines + 1) { i ->
             val y = padding + drawHeight * i / gridLines
@@ -282,20 +1117,13 @@ fun LineChart(
             )
         }
 
-        // Line
         val path = Path()
         points.forEachIndexed { i, (x, y) ->
-            val cx = xFor(x)
-            val cy = yFor(y)
+            val cx = xFor(x); val cy = yFor(y)
             if (i == 0) path.moveTo(cx, cy) else path.lineTo(cx, cy)
         }
-        drawPath(
-            path = path,
-            color = lineColor,
-            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
-        )
+        drawPath(path = path, color = lineColor, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
 
-        // Fill under line
         val fillPath = Path()
         fillPath.addPath(path)
         fillPath.lineTo(xFor(points.last().first), padding + drawHeight)
@@ -303,21 +1131,12 @@ fun LineChart(
         fillPath.close()
         drawPath(fillPath, color = lineColor.copy(alpha = 0.1f))
 
-        // Dots
         points.forEach { (x, y) ->
-            drawCircle(
-                color = lineColor,
-                radius = 4.dp.toPx(),
-                center = Offset(xFor(x), yFor(y))
-            )
+            drawCircle(color = lineColor, radius = 4.dp.toPx(), center = Offset(xFor(x), yFor(y)))
         }
     }
 }
 
-/**
- * Bar chart where each bar is colored by programType ("A" → purple, "B" → green, else gray).
- * [points] = list of (date/weekStart, value, programType).
- */
 @Composable
 fun TypedBarChart(
     points: List<Triple<Long, Float, String>>,
@@ -335,7 +1154,6 @@ fun TypedBarChart(
         val barWidth = (drawWidth / points.size * 0.6f).coerceAtLeast(4.dp.toPx())
         val spacing = drawWidth / points.size
 
-        // Horizontal grid
         repeat(4) { i ->
             val y = padV + drawHeight * i / 4
             drawLine(
@@ -371,10 +1189,7 @@ fun ChartDateLabels(
         dates.size <= 5 -> dates.indices.toList()
         else -> listOf(0, dates.size / 4, dates.size / 2, dates.size * 3 / 4, dates.size - 1)
     }
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceBetween) {
         dates.forEachIndexed { i, date ->
             if (i in indicesToShow) {
                 Text(

@@ -1,9 +1,13 @@
 package com.workouttracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -12,13 +16,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.workouttracker.data.db.entities.ProgramExercise
 import com.workouttracker.data.db.entities.WorkoutSetFact
 import com.workouttracker.domain.model.RecommendationType
+import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.ExerciseHistory
+import com.workouttracker.ui.viewmodel.HistorySessionEntry
 import com.workouttracker.ui.viewmodel.HistoryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,51 +44,90 @@ fun HistoryScreen(
     val selectedExercise by viewModel.selectedExercise.collectAsState()
 
     Scaffold(
+        containerColor = ColorBackground,
         topBar = {
             TopAppBar(
-                title = { Text("История тренировок") },
+                title = {
+                    Text(
+                        "История упражнений",
+                        color = ColorOnBackground,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = ColorOnBackground)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ColorBackground)
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            // Program filter
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Program filter chips (horizontal scroll)
             if (programs.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     programs.forEach { program ->
                         FilterChip(
                             selected = program.id == selectedProgramId,
                             onClick = { viewModel.selectProgram(program.id) },
-                            label = { Text("${program.type}: ${program.name}") }
+                            label = { Text("${program.type}: ${program.name}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ColorPrimary.copy(alpha = 0.18f),
+                                selectedLabelColor = ColorPrimary,
+                                containerColor = ColorSurfaceVariant,
+                                labelColor = ColorOnSurface
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = program.id == selectedProgramId,
+                                selectedBorderColor = ColorPrimary.copy(alpha = 0.4f),
+                                borderColor = ColorSurfaceVariant
+                            )
                         )
                     }
                 }
 
-                // Exercise filter
+                // Exercise filter chips
                 if (exercises.isNotEmpty()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .horizontalScroll(rememberScrollState())
+                            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         exercises.forEach { ex ->
                             FilterChip(
                                 selected = selectedExercise?.id == ex.id,
                                 onClick = { viewModel.loadHistory(ex) },
-                                label = { Text(ex.name, maxLines = 1) }
+                                label = { Text(ex.name, maxLines = 1) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = ColorSecondary.copy(alpha = 0.18f),
+                                    selectedLabelColor = ColorSecondary,
+                                    containerColor = ColorSurfaceVariant,
+                                    labelColor = ColorOnSurface
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = selectedExercise?.id == ex.id,
+                                    selectedBorderColor = ColorSecondary.copy(alpha = 0.4f),
+                                    borderColor = ColorSurfaceVariant
+                                )
                             )
                         }
                     }
+                    HorizontalDivider(color = ColorSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
 
@@ -90,10 +137,30 @@ fun HistoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "Выберите программу и упражнение для просмотра истории",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Text("📊", fontSize = 48.sp)
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            when {
+                                programs.isEmpty() -> "Нет данных"
+                                selectedProgramId == null -> "Выберите программу выше"
+                                else -> "Выберите упражнение"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = ColorOnBackground,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "История показывает динамику\nвеса, повторов и RIR по каждому упражнению",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ColorOnSurface,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 history?.let { h ->
@@ -101,20 +168,16 @@ fun HistoryScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Recommendation card
                         h.recommendation?.let { rec ->
                             item {
-                                RecommendationCard(
-                                    type = rec.type,
-                                    text = rec.text
-                                )
+                                RecommendationCard(type = rec.type, text = rec.text)
                             }
                         }
 
-                        items(h.sessions, key = { it.first.id }) { (sessionEx, sets) ->
+                        items(h.sessions, key = { it.sessionExercise.id }) { entry ->
                             SessionHistoryCard(
-                                sessionExercise = sessionEx,
-                                sets = sets
+                                sessionExercise = entry.sessionExercise,
+                                sets = entry.sets
                             )
                         }
 
@@ -124,7 +187,11 @@ fun HistoryScreen(
                                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("Нет завершённых тренировок для этого упражнения")
+                                    Text(
+                                        "Нет завершённых тренировок по этому упражнению",
+                                        color = ColorOnSurface,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
                         }

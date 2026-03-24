@@ -58,11 +58,8 @@ fun ProgramsScreen(
                     IconButton(onClick = { navController.navigate(Screen.ScheduleSettings.route) }) {
                         Icon(Icons.Default.Schedule, "Расписание")
                     }
-                    IconButton(onClick = { navController.navigate(Screen.Calendar.route) }) {
-                        Icon(Icons.Default.CalendarMonth, "Календарь")
-                    }
                     IconButton(onClick = { navController.navigate(Screen.History.route) }) {
-                        Icon(Icons.Default.History, "История")
+                        Icon(Icons.Default.History, "История упражнений")
                     }
                 }
             )

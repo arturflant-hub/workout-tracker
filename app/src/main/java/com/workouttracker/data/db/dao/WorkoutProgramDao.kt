@@ -20,4 +20,7 @@ interface WorkoutProgramDao {
 
     @Delete
     suspend fun deleteProgram(program: WorkoutProgram)
+
+    @Query("DELETE FROM workout_programs")
+    suspend fun deleteAll()
 }

@@ -81,6 +81,12 @@ class SessionRepository @Inject constructor(
     suspend fun getPreviousSessionByType(programType: String, beforeDate: Long): WorkoutSession? =
         sessionDao.getLastDoneSessionByType(programType, beforeDate)
 
+    suspend fun deleteAllWorkouts() {
+        setFactDao.deleteAll()
+        exerciseDao.deleteAll()
+        sessionDao.deleteAll()
+    }
+
     /**
      * Returns max actualWeight per session for an exercise, ordered from newest to oldest.
      * Used for plateau detection (4+ sessions with same weight).

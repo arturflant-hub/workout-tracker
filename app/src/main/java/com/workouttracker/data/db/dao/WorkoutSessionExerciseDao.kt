@@ -29,4 +29,7 @@ interface WorkoutSessionExerciseDao {
            "WHERE wse.programExerciseId = :programExerciseId AND ws.status = 'DONE' " +
            "ORDER BY ws.date DESC")
     suspend fun getHistoryByProgramExercise(programExerciseId: Long): List<WorkoutSessionExercise>
+
+    @Query("DELETE FROM workout_session_exercises")
+    suspend fun deleteAll()
 }

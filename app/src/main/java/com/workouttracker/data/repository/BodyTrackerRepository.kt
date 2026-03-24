@@ -19,4 +19,6 @@ class BodyTrackerRepository @Inject constructor(
     suspend fun insert(measurement: BodyMeasurement): Long = dao.insert(measurement)
 
     suspend fun delete(measurement: BodyMeasurement) = dao.delete(measurement)
+
+    suspend fun deleteAll() = dao.deleteAll()
 }

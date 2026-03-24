@@ -5,7 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +33,12 @@ fun DashboardScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val sdf = remember { SimpleDateFormat("EEE, d MMM", Locale("ru")) }
+    val todayStart = remember {
+        val c = java.util.Calendar.getInstance()
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0); c.set(java.util.Calendar.MINUTE, 0)
+        c.set(java.util.Calendar.SECOND, 0); c.set(java.util.Calendar.MILLISECOND, 0)
+        c.timeInMillis
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -38,7 +49,7 @@ fun DashboardScreen(
     ) {
         item {
             Text(
-                "Дашборд",
+                "Главная",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = ColorOnBackground
@@ -50,29 +61,46 @@ fun DashboardScreen(
             DarkCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Следующая тренировка",
+                        "Следующая",
                         style = MaterialTheme.typography.labelMedium,
-                        color = ColorOnSurface
+                        color = ColorPrimary,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(8.dp))
                     if (state.nextSession != null) {
                         val session = state.nextSession!!
+                        val isToday = session.date >= todayStart && session.date < todayStart + 86_400_000L
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                sdf.format(Date(session.date)),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = ColorOnBackground
-                            )
-                            Badge(containerColor = ColorPrimary) {
+                            Column {
+                                Text(
+                                    if (isToday) "Сегодня" else sdf.format(Date(session.date))
+                                        .replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isToday) ColorSecondary else ColorOnBackground
+                                )
+                                if (!isToday) {
+                                    Text(
+                                        sdf.format(Date(session.date)).replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ColorOnSurface
+                                    )
+                                }
+                            }
+                            Surface(
+                                color = ColorPrimary.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
                                 Text(
                                     "Тип ${session.programType}",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    color = ColorOnBackground
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = ColorPrimary
                                 )
                             }
                         }
@@ -92,16 +120,20 @@ fun DashboardScreen(
                             )
                         }
                         Spacer(Modifier.height(12.dp))
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 state.nextSession?.id?.let { id ->
                                     navController.navigate(Screen.WorkoutDetail.createRoute(id))
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = ColorPrimary)
+                            border = BorderStroke(1.dp, ColorPrimary),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorPrimary),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Подробнее")
+                            Text("Смотреть план", fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(18.dp))
                         }
                     } else {
                         Text(
@@ -125,7 +157,7 @@ fun DashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Предыдущая тренировка",
+                        "Последняя тренировка",
                         style = MaterialTheme.typography.labelMedium,
                         color = ColorOnSurface
                     )
@@ -145,27 +177,32 @@ fun DashboardScreen(
                                     color = ColorOnBackground
                                 )
                                 Text(
-                                    "Тип ${session.programType}",
+                                    if (state.lastDaySessionCount > 1)
+                                        "${state.lastDaySessionCount} тренировки за день"
+                                    else
+                                        "Тип ${session.programType}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = ColorOnSurface
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    "✅ Завершена",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    "%.0f кг".format(state.lastSessionTonnage),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = ColorSecondary
                                 )
                                 Text(
-                                    "%.0f кг тоннаж".format(state.lastSessionTonnage),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    "суммарный тоннаж",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = ColorOnSurface
                                 )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "Нажмите для деталей →",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ColorPrimary
+                                Spacer(Modifier.height(6.dp))
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = ColorOnSurface,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -202,9 +239,15 @@ fun DashboardScreen(
                         value = state.currentWeight?.let { "%.1f кг".format(it) } ?: "—",
                         subValue = state.weightChange?.let {
                             val sign = if (it >= 0) "+" else ""
-                            "$sign%.1f кг".format(it)
+                            "$sign%.1f кг от старта".format(it)
                         },
                         subColor = when {
+                            state.weightChange == null -> ColorOnSurface
+                            state.weightChange!! > 0 -> ColorError
+                            else -> ColorSecondary
+                        },
+                        trendUp = state.weightChange?.let { it > 0 },
+                        trendColor = when {
                             state.weightChange == null -> ColorOnSurface
                             state.weightChange!! > 0 -> ColorError
                             else -> ColorSecondary
@@ -213,7 +256,13 @@ fun DashboardScreen(
                     MetricCard(
                         modifier = Modifier.weight(1f),
                         label = "% жира (Navy)",
-                        value = state.bodyFatPercent?.let { "%.1f%%".format(it) } ?: "—"
+                        value = state.bodyFatPercent?.let { "%.1f%%".format(it) } ?: "—",
+                        trendUp = state.bodyFatChange?.let { it > 0 },
+                        trendColor = when {
+                            state.bodyFatChange == null -> ColorOnSurface
+                            state.bodyFatChange!! > 0 -> ColorError
+                            else -> ColorSecondary
+                        }
                     )
                 }
                 Row(
@@ -229,6 +278,12 @@ fun DashboardScreen(
                         } ?: "—",
                         valueColor = when {
                             state.waistChange == null -> ColorOnBackground
+                            state.waistChange!! < 0 -> ColorSecondary
+                            else -> ColorError
+                        },
+                        trendUp = state.waistChange?.let { it > 0 },
+                        trendColor = when {
+                            state.waistChange == null -> ColorOnSurface
                             state.waistChange!! < 0 -> ColorSecondary
                             else -> ColorError
                         }
@@ -254,17 +309,25 @@ fun DashboardScreen(
                         value = state.avgVolume?.let { "%.0f кг".format(it) } ?: "—"
                     )
                 }
-                Row(
+                MetricCard(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Средний RIR",
-                        value = state.avgRir?.let { "%.1f".format(it) } ?: "—"
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                    label = "Средний RIR",
+                    value = state.avgRir?.let { "%.1f".format(it) } ?: "—",
+                    subValue = state.avgRir?.let {
+                        when {
+                            it <= 1f -> "Слишком тяжело — снизьте вес"
+                            it <= 2f -> "Рабочая зона — всё правильно"
+                            else -> "Слишком легко — можно добавить вес"
+                        }
+                    },
+                    subColor = state.avgRir?.let {
+                        when {
+                            it <= 1f -> ColorError
+                            it <= 2f -> ColorSecondary
+                            else -> ColorOnSurface
+                        }
+                    } ?: ColorOnSurface,
+                )
             }
         }
     }
@@ -292,8 +355,10 @@ fun MetricCard(
     label: String,
     value: String,
     subValue: String? = null,
-    valueColor: androidx.compose.ui.graphics.Color = ColorOnBackground,
-    subColor: androidx.compose.ui.graphics.Color = ColorOnSurface
+    valueColor: Color = ColorOnBackground,
+    subColor: Color = ColorOnSurface,
+    trendUp: Boolean? = null,
+    trendColor: Color = ColorOnSurface
 ) {
     DarkCard(modifier = modifier) {
         Column(
@@ -305,13 +370,25 @@ fun MetricCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = ColorOnSurface
             )
-            Text(
-                value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = valueColor,
-                fontSize = 22.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = valueColor,
+                    fontSize = 22.sp,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (trendUp != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = if (trendUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = null,
+                        tint = trendColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
             if (subValue != null) {
                 Text(
                     subValue,

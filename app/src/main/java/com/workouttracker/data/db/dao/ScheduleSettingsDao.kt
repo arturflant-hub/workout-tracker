@@ -18,6 +18,9 @@ interface ScheduleSettingsDao {
 
     @Update
     suspend fun updateSettings(settings: ScheduleSettings)
+
+    @Query("DELETE FROM schedule_settings")
+    suspend fun deleteAll()
 }
 
 @Dao

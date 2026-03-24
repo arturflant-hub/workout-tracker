@@ -45,7 +45,7 @@ fun BodyTrackerScreen(
         ) {
             item {
                 Text(
-                    "Антропометрия",
+                    "Замеры тела",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = ColorOnBackground
@@ -55,15 +55,31 @@ fun BodyTrackerScreen(
             if (measurements.isEmpty()) {
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 60.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "Нет замеров.\nНажмите + чтобы добавить",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ColorOnSurface,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
+                        androidx.compose.foundation.layout.Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "⚖️",
+                                style = MaterialTheme.typography.headlineLarge
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Нет замеров",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ColorOnBackground
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Нажмите + чтобы добавить первый замер",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ColorOnSurface,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
                 }
             }

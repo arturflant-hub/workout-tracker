@@ -38,7 +38,9 @@ data class ActiveExerciseWithSets(
     val exercise: WorkoutSessionExercise,
     val sets: List<ActiveSetInput>,
     val recommendation: Recommendation? = null,
-    val hasPlateau: Boolean = false
+    val hasPlateau: Boolean = false,
+    val prevComment: String? = null,
+    val currentComment: String = ""
 )
 
 data class ActiveWorkoutUiState(
@@ -50,7 +52,8 @@ data class ActiveWorkoutUiState(
     val isCompleted: Boolean = false,
     val elapsedSeconds: Long = 0L,
     val isPaused: Boolean = false,
-    val selectedExerciseIndex: Int? = null
+    val selectedExerciseIndex: Int? = null,
+    val isEditMode: Boolean = false
 )
 
 @HiltViewModel
@@ -75,15 +78,23 @@ class ActiveWorkoutViewModel @Inject constructor(
     fun loadSession(sessionId: Long) {
         viewModelScope.launch {
             val session = repository.getSessionById(sessionId) ?: return@launch
+            val isEditMode = session.status == SessionStatus.DONE
             if (session.status == SessionStatus.PLANNED) {
                 repository.startSession(sessionId)
             }
             val updatedSession = repository.getSessionById(sessionId) ?: session
             _uiState.update {
-                it.copy(session = updatedSession, restTimerDuration = restTimerDuration)
+                it.copy(
+                    session = updatedSession,
+                    restTimerDuration = restTimerDuration,
+                    isEditMode = isEditMode
+                )
             }
 
-            startWorkoutTimer()
+            // Don't start workout timer in edit mode
+            if (!isEditMode) {
+                startWorkoutTimer()
+            }
 
             repository.getExercisesBySession(sessionId).collect { exercises ->
                 val result = exercises.map { ex ->
@@ -95,6 +106,12 @@ class ActiveWorkoutViewModel @Inject constructor(
                     val hasPlateau = programEx?.let {
                         try { progressionUseCase.detectPlateau(it.id) } catch (_: Exception) { false }
                     } ?: false
+                    val prevComment = programEx?.let {
+                        try {
+                            val history = repository.getHistoryByProgramExercise(it.id)
+                            history.firstOrNull()?.comment?.takeIf { c -> c.isNotEmpty() }
+                        } catch (_: Exception) { null }
+                    }
 
                     val existingSets = repository.getSetsForExercise(ex.id)
                     val sets = if (existingSets.isNotEmpty()) {
@@ -111,7 +128,6 @@ class ActiveWorkoutViewModel @Inject constructor(
                             )
                         }
                     } else {
-                        // Pre-fill with recommended weight/reps when available
                         val suggestedWeight = recommendation?.nextWeight ?: ex.plannedWeight
                         val suggestedReps = recommendation?.targetRepsMin ?: ex.plannedMinReps
                         (1..ex.plannedSets).map { idx ->
@@ -125,7 +141,14 @@ class ActiveWorkoutViewModel @Inject constructor(
                         }
                     }
 
-                    ActiveExerciseWithSets(ex, sets, recommendation, hasPlateau)
+                    ActiveExerciseWithSets(
+                        exercise = ex,
+                        sets = sets,
+                        recommendation = recommendation,
+                        hasPlateau = hasPlateau,
+                        prevComment = prevComment,
+                        currentComment = ex.comment
+                    )
                 }
                 _uiState.update { it.copy(exercisesWithSets = result) }
             }
@@ -176,7 +199,6 @@ class ActiveWorkoutViewModel @Inject constructor(
             )
             if (setInput.factId == 0L) {
                 val newId = repository.saveSetFact(fact)
-                // Update factId in state
                 val exList = _uiState.value.exercisesWithSets.toMutableList()
                 val exIdx = exList.indexOfFirst { it.exercise.id == exerciseId }
                 if (exIdx >= 0) {
@@ -192,7 +214,9 @@ class ActiveWorkoutViewModel @Inject constructor(
             } else {
                 repository.updateSetFact(fact)
             }
-            startRestTimer()
+            if (!_uiState.value.isEditMode) {
+                startRestTimer()
+            }
         }
     }
 
@@ -203,6 +227,62 @@ class ActiveWorkoutViewModel @Inject constructor(
         newSets[setIdx] = updated
         current[exerciseIdx] = ex.copy(sets = newSets)
         _uiState.update { it.copy(exercisesWithSets = current) }
+    }
+
+    fun addSet(exerciseIdx: Int) {
+        val current = _uiState.value.exercisesWithSets.toMutableList()
+        val ex = current[exerciseIdx]
+        val lastSet = ex.sets.lastOrNull()
+        val newIndex = (lastSet?.setIndex ?: 0) + 1
+        val newSet = ActiveSetInput(
+            setIndex = newIndex,
+            plannedReps = lastSet?.plannedReps ?: ex.exercise.plannedMinReps,
+            plannedWeight = lastSet?.plannedWeight ?: ex.exercise.plannedWeight,
+            actualReps = lastSet?.actualReps ?: ex.exercise.plannedMinReps,
+            actualWeight = lastSet?.actualWeight ?: ex.exercise.plannedWeight
+        )
+        current[exerciseIdx] = ex.copy(sets = ex.sets + newSet)
+        _uiState.update { it.copy(exercisesWithSets = current) }
+    }
+
+    fun saveAllSets(exerciseIdx: Int) {
+        val ex = _uiState.value.exercisesWithSets.getOrNull(exerciseIdx) ?: return
+        viewModelScope.launch {
+            val updatedSets = mutableListOf<ActiveSetInput>()
+            ex.sets.filter { it.isDone || it.factId != 0L }.forEach { set ->
+                val fact = WorkoutSetFact(
+                    id = set.factId,
+                    sessionExerciseId = ex.exercise.id,
+                    setIndex = set.setIndex,
+                    plannedReps = set.plannedReps,
+                    plannedWeight = set.plannedWeight,
+                    actualReps = set.actualReps,
+                    actualWeight = set.actualWeight,
+                    rir = set.rir
+                )
+                val savedId = if (set.factId == 0L) repository.saveSetFact(fact) else {
+                    repository.updateSetFact(fact)
+                    set.factId
+                }
+                updatedSets += set.copy(factId = savedId, isDone = true)
+            }
+            val savedById = updatedSets.associateBy { it.setIndex }
+            val mergedSets = ex.sets.map { savedById[it.setIndex] ?: it }
+            val current = _uiState.value.exercisesWithSets.toMutableList()
+            current[exerciseIdx] = ex.copy(sets = mergedSets)
+            _uiState.update { it.copy(exercisesWithSets = current) }
+        }
+    }
+
+    fun updateComment(exerciseIdx: Int, comment: String) {
+        val current = _uiState.value.exercisesWithSets.toMutableList()
+        val ex = current[exerciseIdx]
+        current[exerciseIdx] = ex.copy(currentComment = comment)
+        _uiState.update { it.copy(exercisesWithSets = current) }
+        viewModelScope.launch {
+            val updated = ex.exercise.copy(comment = comment)
+            repository.updateExercise(updated)
+        }
     }
 
     // ---------- Rest timer ----------

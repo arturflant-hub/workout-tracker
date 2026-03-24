@@ -127,7 +127,7 @@ fun WorkoutNavGraph(navController: NavHostController) {
             }
 
             composable(BottomNavScreen.Statistics.route) {
-                StatisticsScreen()
+                StatisticsScreen(navController = navController)
             }
 
             composable(BottomNavScreen.Settings.route) {

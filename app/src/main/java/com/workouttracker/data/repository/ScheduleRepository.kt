@@ -117,6 +117,12 @@ class ScheduleRepository @Inject constructor(
 
     fun getAllSessions(): Flow<List<WorkoutSession>> = sessionDao.getAllSessions()
 
+    suspend fun deleteSchedule() {
+        weekPatternDao.deleteAll()
+        settingsDao.deleteAll()
+        sessionDao.deletePlannedFrom(0L)
+    }
+
     /**
      * Creates a session for today from the given programType.
      * Returns the session ID (existing or newly created).
@@ -124,9 +130,12 @@ class ScheduleRepository @Inject constructor(
      */
     suspend fun createQuickSession(programType: String): Long {
         val today = startOfDay(System.currentTimeMillis())
-        // Check if session for today already exists
+        // Reuse existing session only if it is still active (not yet completed)
         val existing = sessionDao.getSessionByDate(today)
-        if (existing != null) return existing.id
+        if (existing != null &&
+            (existing.status == SessionStatus.PLANNED || existing.status == SessionStatus.IN_PROGRESS)) {
+            return existing.id
+        }
 
         val session = WorkoutSession(
             date = today,

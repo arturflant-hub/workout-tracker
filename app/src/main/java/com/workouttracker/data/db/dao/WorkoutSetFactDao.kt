@@ -26,4 +26,7 @@ interface WorkoutSetFactDao {
 
     @Query("DELETE FROM workout_set_facts WHERE sessionExerciseId = :exerciseId")
     suspend fun deleteAllForExercise(exerciseId: Long)
+
+    @Query("DELETE FROM workout_set_facts")
+    suspend fun deleteAll()
 }

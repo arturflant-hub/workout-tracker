@@ -3,6 +3,8 @@ package com.workouttracker.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.workouttracker.data.db.entities.ProgramExercise
+import com.workouttracker.data.db.entities.SessionStatus
+import com.workouttracker.data.db.entities.WorkoutSession
 import com.workouttracker.data.db.entities.WorkoutSessionExercise
 import com.workouttracker.data.db.entities.WorkoutSetFact
 import com.workouttracker.data.repository.ProgramRepository
@@ -14,9 +16,15 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class HistorySessionEntry(
+    val sessionExercise: WorkoutSessionExercise,
+    val sets: List<WorkoutSetFact>,
+    val sessionDate: Long = 0L
+)
+
 data class ExerciseHistory(
     val programExercise: ProgramExercise,
-    val sessions: List<Pair<WorkoutSessionExercise, List<WorkoutSetFact>>>,
+    val sessions: List<HistorySessionEntry>,
     val recommendation: Recommendation?
 )
 
@@ -28,6 +36,10 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     val programs = programRepository.getAllPrograms()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val completedSessions: StateFlow<List<WorkoutSession>> = sessionRepository.getAllSessions()
+        .map { list -> list.filter { it.status == SessionStatus.DONE }.sortedByDescending { it.date } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedProgramId = MutableStateFlow<Long?>(null)
@@ -52,12 +64,13 @@ class HistoryViewModel @Inject constructor(
         _selectedExercise.value = programExercise
         viewModelScope.launch {
             val sessions = sessionRepository.getHistoryByProgramExercise(programExercise.id)
-            val sessionPairs = sessions.map { ex ->
+            val entries = sessions.map { ex ->
                 val sets = sessionRepository.getSetsForExercise(ex.id)
-                Pair(ex, sets)
+                val session = sessionRepository.getSessionById(ex.sessionId)
+                HistorySessionEntry(ex, sets, session?.date ?: 0L)
             }
             val recommendation = progressionUseCase.getProgressionRecommendation(programExercise)
-            _history.value = ExerciseHistory(programExercise, sessionPairs, recommendation)
+            _history.value = ExerciseHistory(programExercise, entries, recommendation)
         }
     }
 }
