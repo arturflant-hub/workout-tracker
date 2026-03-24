@@ -47,7 +47,13 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             // Load sessions
             scheduleRepository.getAllSessions().collect { allSessions ->
-                val now = System.currentTimeMillis()
+                val cal = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }
+                val now = cal.timeInMillis
 
                 val nextSession = allSessions
                     .filter { it.status == SessionStatus.PLANNED && it.date >= now }
