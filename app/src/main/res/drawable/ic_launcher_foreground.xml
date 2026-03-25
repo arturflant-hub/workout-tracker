@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Dumbbell icon — white on transparent, centered in 72dp safe zone (18-90) -->
+
+    <!-- Left outer plate -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,40 L28,68 L33,68 L33,40 Z" />
+
+    <!-- Left inner plate -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M33,43 L33,65 L38,65 L38,43 Z" />
+
+    <!-- Bar (horizontal center) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,50 L70,50 L70,58 L38,58 Z" />
+
+    <!-- Right inner plate -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,43 L70,65 L75,65 L75,43 Z" />
+
+    <!-- Right outer plate -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M75,40 L75,68 L80,68 L80,40 Z" />
+
+    <!-- Left grip cap -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25,45 L25,63 L28,63 L28,45 Z" />
+
+    <!-- Right grip cap -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M80,45 L80,63 L83,63 L83,45 Z" />
+
+</vector>

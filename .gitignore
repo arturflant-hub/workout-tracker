@@ -1,1 +1,6 @@
 CLAUDE.md
+.gradle/
+app/build/
+build/
+local.properties
+.idea/

@@ -128,7 +128,7 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Версия 1.0",
+                    "Версия ${com.workouttracker.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodySmall,
                     color = ColorOnSurface
                 )
