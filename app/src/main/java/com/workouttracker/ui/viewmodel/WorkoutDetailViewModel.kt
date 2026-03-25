@@ -20,7 +20,7 @@ data class ExerciseDetailItem(
     val actualSets: List<WorkoutSetFact> = emptyList(),
     val prevExercise: WorkoutSessionExercise? = null,
     val prevSets: List<WorkoutSetFact> = emptyList(),
-    val recommendation: String = "👍",
+    val recommendation: String = "KEEP",
     val currentE1RM: Float = 0f,
     val prevE1RM: Float = 0f,
     val currentTonnage: Float = 0f,
@@ -108,13 +108,13 @@ class WorkoutDetailViewModel @Inject constructor(
 
                 // Recommendation
                 val recommendation: String = if (prevE1RM <= 0f) {
-                    "👍"
+                    "KEEP"
                 } else {
                     val change = (currentE1RM - prevE1RM) / prevE1RM
                     when {
-                        change > 0.025f -> "⬆"
-                        change < -0.025f -> "⚠"
-                        else -> "👍"
+                        change > 0.025f -> "INCREASE"
+                        change < -0.025f -> "DECREASE"
+                        else -> "KEEP"
                     }
                 }
 

@@ -1,6 +1,7 @@
 package com.workouttracker.ui.screens
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Warning
@@ -172,6 +174,7 @@ fun DevToolsDialog(
     viewModel: DevToolsViewModel,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var pendingAction by remember { mutableStateOf<DevAction?>(null) }
 
     if (pendingAction != null) {
@@ -180,7 +183,11 @@ fun DevToolsDialog(
             onDismissRequest = { pendingAction = null },
             containerColor = ColorSurface,
             icon = {
-                Icon(Icons.Default.Warning, null, tint = ColorError)
+                Icon(
+                    if (action.isPositive) Icons.Default.Add else Icons.Default.Warning,
+                    null,
+                    tint = if (action.isPositive) ColorSecondary else ColorError
+                )
             },
             title = {
                 Text(action.title, color = ColorOnBackground, fontWeight = FontWeight.Bold)
@@ -191,10 +198,17 @@ fun DevToolsDialog(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        action.execute(viewModel) { pendingAction = null }
+                        action.execute(viewModel) {
+                            Toast.makeText(context, action.toastMessage, Toast.LENGTH_SHORT).show()
+                            pendingAction = null
+                        }
                     }
                 ) {
-                    Text("Удалить", color = ColorError, fontWeight = FontWeight.Bold)
+                    Text(
+                        action.confirmButtonText,
+                        color = if (action.isPositive) ColorSecondary else ColorError,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
@@ -224,14 +238,19 @@ fun DevToolsDialog(
                             .clickable { pendingAction = action },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (action.isDangerous)
-                                ColorError.copy(alpha = 0.08f)
-                            else
-                                ColorSurfaceVariant
+                            containerColor = when {
+                                action.isDangerous -> ColorError.copy(alpha = 0.08f)
+                                action.isPositive -> ColorSecondary.copy(alpha = 0.08f)
+                                else -> ColorSurfaceVariant
+                            }
                         ),
                         border = BorderStroke(
                             1.dp,
-                            if (action.isDangerous) ColorError.copy(alpha = 0.3f) else ColorSurfaceVariant
+                            when {
+                                action.isDangerous -> ColorError.copy(alpha = 0.3f)
+                                action.isPositive -> ColorSecondary.copy(alpha = 0.3f)
+                                else -> ColorSurfaceVariant
+                            }
                         )
                     ) {
                         Row(
@@ -243,7 +262,11 @@ fun DevToolsDialog(
                                     action.title,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (action.isDangerous) ColorError else ColorOnBackground
+                                    color = when {
+                                        action.isDangerous -> ColorError
+                                        action.isPositive -> ColorSecondary
+                                        else -> ColorOnBackground
+                                    }
                                 )
                                 Text(
                                     action.subtitle,
@@ -269,33 +292,49 @@ private data class DevAction(
     val subtitle: String,
     val confirmText: String,
     val isDangerous: Boolean = false,
+    val isPositive: Boolean = false,
+    val confirmButtonText: String = "Удалить",
+    val toastMessage: String = "Готово",
     val execute: (DevToolsViewModel, () -> Unit) -> Unit
 )
 
 private object DevActions {
     val all = listOf(
         DevAction(
+            title = "Заполнить тестовыми данными",
+            subtitle = "Создаёт программы, тренировки за 2 недели и замеры тела",
+            confirmText = "Все текущие данные будут удалены и заменены тестовыми: 2 программы (A/B), 6 тренировок, 4 замера тела.",
+            isPositive = true,
+            confirmButtonText = "Создать",
+            toastMessage = "Тестовые данные созданы",
+            execute = { vm, done -> vm.generateMockData(done) }
+        ),
+        DevAction(
             title = "Сброс тренировок",
             subtitle = "Удаляет все завершённые и активные тренировки",
             confirmText = "Все тренировки, подходы и результаты будут удалены без возможности восстановления.",
+            toastMessage = "Тренировки удалены",
             execute = { vm, done -> vm.resetWorkouts(done) }
         ),
         DevAction(
             title = "Сброс расписания",
             subtitle = "Удаляет настройки расписания и запланированные тренировки",
             confirmText = "Расписание, шаблоны недель и все запланированные тренировки будут удалены.",
+            toastMessage = "Расписание удалено",
             execute = { vm, done -> vm.resetSchedule(done) }
         ),
         DevAction(
             title = "Сброс программ",
             subtitle = "Удаляет программы тренировок A/B и все упражнения",
             confirmText = "Все программы тренировок и упражнения в них будут удалены.",
+            toastMessage = "Программы удалены",
             execute = { vm, done -> vm.resetPrograms(done) }
         ),
         DevAction(
             title = "Сброс антропометрии",
             subtitle = "Удаляет все замеры тела и вес",
             confirmText = "Все замеры тела (вес, обхваты, возраст) будут удалены.",
+            toastMessage = "Антропометрия удалена",
             execute = { vm, done -> vm.resetBodyMeasurements(done) }
         ),
         DevAction(
@@ -303,6 +342,7 @@ private object DevActions {
             subtitle = "Удаляет все данные из локальной базы",
             confirmText = "ВСЕ данные приложения будут удалены: тренировки, расписание, программы, антропометрия. Это действие необратимо.",
             isDangerous = true,
+            toastMessage = "Все данные удалены",
             execute = { vm, done -> vm.resetAll(done) }
         )
     )

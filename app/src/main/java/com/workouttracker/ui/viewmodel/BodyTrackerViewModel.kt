@@ -52,6 +52,13 @@ class BodyTrackerViewModel @Inject constructor(
         }
     }
 
+    fun update(measurement: BodyMeasurement) {
+        viewModelScope.launch {
+            repository.insert(measurement) // REPLACE strategy preserves id
+            _firstMeasurement.value = repository.getFirst()
+        }
+    }
+
     fun delete(measurement: BodyMeasurement) {
         viewModelScope.launch {
             repository.delete(measurement)

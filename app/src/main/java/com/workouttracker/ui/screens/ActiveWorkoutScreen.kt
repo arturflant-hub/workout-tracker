@@ -664,21 +664,25 @@ fun ExerciseDetailDialog(
                                     .also { it[idx] = updated.copy(isDone = true) }
                                 localSets = newList
                                 onSetDone(idx, updated)
+                            },
+                            onUndone = { updated ->
+                                val newList = localSets.toMutableList()
+                                    .also { it[idx] = updated.copy(isDone = false) }
+                                localSets = newList
+                                onSetChanged(idx, updated.copy(isDone = false))
                             }
                         )
                     }
-                    // Add set button (edit mode)
-                    if (isEditMode) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = onAddSet,
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, ColorPrimary),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorPrimary),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("+ Добавить подход", style = MaterialTheme.typography.labelMedium)
-                        }
+                    // Add set button
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onAddSet,
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, ColorPrimary),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorPrimary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("+ Добавить подход", style = MaterialTheme.typography.labelMedium)
                     }
 
                     // Comment section
@@ -764,7 +768,8 @@ fun ExerciseDetailDialog(
 fun ActiveSetRow(
     setInput: ActiveSetInput,
     onChanged: (ActiveSetInput) -> Unit,
-    onDone: (ActiveSetInput) -> Unit
+    onDone: (ActiveSetInput) -> Unit,
+    onUndone: (ActiveSetInput) -> Unit = {}
 ) {
     var weightText by remember(setInput.setIndex, setInput.isDone) {
         mutableStateOf(setInput.actualWeight.let {
@@ -851,7 +856,7 @@ fun ActiveSetRow(
                 keyboardType = KeyboardType.Number
             )
 
-            // Done button
+            // Done button (toggles)
             IconButton(
                 onClick = {
                     val current = setInput.copy(
@@ -859,10 +864,13 @@ fun ActiveSetRow(
                         actualReps = repsText.toIntOrNull() ?: setInput.actualReps,
                         rir = rirText.toIntOrNull() ?: setInput.rir
                     )
-                    onDone(current)
+                    if (setInput.isDone) {
+                        onUndone(current)
+                    } else {
+                        onDone(current)
+                    }
                 },
-                modifier = Modifier.weight(0.8f),
-                enabled = !setInput.isDone
+                modifier = Modifier.weight(0.8f)
             ) {
                 Icon(
                     Icons.Default.Check,

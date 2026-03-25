@@ -81,6 +81,13 @@ class SessionRepository @Inject constructor(
     suspend fun getPreviousSessionByType(programType: String, beforeDate: Long): WorkoutSession? =
         sessionDao.getLastDoneSessionByType(programType, beforeDate)
 
+    suspend fun insertSession(session: WorkoutSession): Long = sessionDao.insertSession(session)
+
+    suspend fun insertSessionExercise(exercise: WorkoutSessionExercise): Long =
+        exerciseDao.insertExercise(exercise)
+
+    suspend fun insertSetFacts(sets: List<WorkoutSetFact>) = setFactDao.insertSets(sets)
+
     suspend fun deleteAllWorkouts() {
         setFactDao.deleteAll()
         exerciseDao.deleteAll()

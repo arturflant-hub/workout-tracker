@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.workouttracker.data.db.entities.WorkoutProgram
 import com.workouttracker.ui.navigation.Screen
+import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.ProgramsViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -31,6 +33,7 @@ fun ProgramsScreen(
     val exercises by viewModel.exercises.collectAsState()
 
     var showAddProgramDialog by remember { mutableStateOf(false) }
+    var showDeleteProgramDialog by remember { mutableStateOf(false) }
 
     // Drag-and-drop state — declared at top level (not inside conditionals)
     val listState = rememberLazyListState()
@@ -54,7 +57,17 @@ fun ProgramsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Программы тренировок") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
                 actions = {
+                    if (selectedProgramId != null) {
+                        IconButton(onClick = { showDeleteProgramDialog = true }) {
+                            Icon(Icons.Default.Delete, "Удалить программу", tint = ColorError)
+                        }
+                    }
                     IconButton(onClick = { navController.navigate(Screen.ScheduleSettings.route) }) {
                         Icon(Icons.Default.Schedule, "Расписание")
                     }
@@ -179,6 +192,45 @@ fun ProgramsScreen(
                 showAddProgramDialog = false
             }
         )
+    }
+
+    if (showDeleteProgramDialog) {
+        val selectedProgram = programs.find { it.id == selectedProgramId }
+        if (selectedProgram != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteProgramDialog = false },
+                containerColor = ColorSurface,
+                icon = {
+                    Icon(Icons.Default.Warning, null, tint = ColorError)
+                },
+                title = {
+                    Text(
+                        "Удалить программу?",
+                        color = ColorOnBackground,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        "Программа \"${selectedProgram.name}\" (${selectedProgram.type}) и все её упражнения будут удалены.",
+                        color = ColorOnSurface
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteProgram(selectedProgram)
+                        showDeleteProgramDialog = false
+                    }) {
+                        Text("Удалить", color = ColorError, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteProgramDialog = false }) {
+                        Text("Отмена", color = ColorOnSurface)
+                    }
+                }
+            )
+        }
     }
 }
 

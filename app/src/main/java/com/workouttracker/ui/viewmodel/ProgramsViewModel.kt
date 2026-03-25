@@ -39,7 +39,8 @@ class ProgramsViewModel @Inject constructor(
 
     fun createProgram(type: String, name: String) {
         viewModelScope.launch {
-            repository.insertProgram(WorkoutProgram(type = type, name = name))
+            val newId = repository.insertProgram(WorkoutProgram(type = type, name = name))
+            _selectedProgramId.value = newId
         }
     }
 

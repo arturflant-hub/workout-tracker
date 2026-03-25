@@ -220,6 +220,21 @@ class ActiveWorkoutViewModel @Inject constructor(
         }
     }
 
+    fun undoSetDone(exerciseId: Long, setInput: ActiveSetInput) {
+        val exList = _uiState.value.exercisesWithSets.toMutableList()
+        val exIdx = exList.indexOfFirst { it.exercise.id == exerciseId }
+        if (exIdx >= 0) {
+            val ex = exList[exIdx]
+            val setIdx = ex.sets.indexOfFirst { it.setIndex == setInput.setIndex }
+            if (setIdx >= 0) {
+                val newSets = ex.sets.toMutableList()
+                newSets[setIdx] = newSets[setIdx].copy(isDone = false)
+                exList[exIdx] = ex.copy(sets = newSets)
+                _uiState.update { it.copy(exercisesWithSets = exList) }
+            }
+        }
+    }
+
     fun updateSetInput(exerciseIdx: Int, setIdx: Int, updated: ActiveSetInput) {
         val current = _uiState.value.exercisesWithSets.toMutableList()
         val ex = current[exerciseIdx]

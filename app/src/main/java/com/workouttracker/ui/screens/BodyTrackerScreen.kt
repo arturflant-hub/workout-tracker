@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -32,6 +34,7 @@ fun BodyTrackerScreen(
     val measurements by viewModel.measurements.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedMeasurement by remember { mutableStateOf<BodyMeasurementUi?>(null) }
+    var editingMeasurement by remember { mutableStateOf<BodyMeasurement?>(null) }
 
     val sdf = remember { SimpleDateFormat("d MMM yyyy", Locale("ru")) }
 
@@ -122,7 +125,22 @@ fun BodyTrackerScreen(
             sdf = sdf,
             weightChange = viewModel.weightChangeFromStart(sel.measurement),
             waistChange = viewModel.waistChangeFromStart(sel.measurement),
-            onDismiss = { selectedMeasurement = null }
+            onDismiss = { selectedMeasurement = null },
+            onEdit = {
+                editingMeasurement = sel.measurement
+                selectedMeasurement = null
+            }
+        )
+    }
+
+    editingMeasurement?.let { existing ->
+        AddMeasurementDialog(
+            onDismiss = { editingMeasurement = null },
+            onConfirm = { measurement ->
+                viewModel.update(measurement)
+                editingMeasurement = null
+            },
+            existing = existing
         )
     }
 }
@@ -190,7 +208,8 @@ fun MeasurementDetailDialog(
     sdf: SimpleDateFormat,
     weightChange: Float?,
     waistChange: Float?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit = {}
 ) {
     val m = item.measurement
     AlertDialog(
@@ -231,6 +250,11 @@ fun MeasurementDetailDialog(
             TextButton(onClick = onDismiss) {
                 Text("Закрыть", color = ColorPrimary)
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onEdit) {
+                Text("Редактировать", color = ColorOnSurface)
+            }
         }
     )
 }
@@ -249,28 +273,35 @@ fun DetailRow(label: String, value: String) {
 @Composable
 fun AddMeasurementDialog(
     onDismiss: () -> Unit,
-    onConfirm: (BodyMeasurement) -> Unit
+    onConfirm: (BodyMeasurement) -> Unit,
+    existing: BodyMeasurement? = null
 ) {
-    var weight by remember { mutableStateOf("") }
-    var height by remember { mutableStateOf("") }
-    var waist by remember { mutableStateOf("") }
-    var neck by remember { mutableStateOf("") }
-    var chest by remember { mutableStateOf("") }
-    var hips by remember { mutableStateOf("") }
-    var thigh by remember { mutableStateOf("") }
-    var arm by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf(existing?.weight?.let { "%.1f".format(it) } ?: "") }
+    var height by remember { mutableStateOf(existing?.height?.let { "%.0f".format(it) } ?: "") }
+    var waist by remember { mutableStateOf(existing?.waist?.let { "%.1f".format(it) } ?: "") }
+    var neck by remember { mutableStateOf(existing?.neck?.let { "%.1f".format(it) } ?: "") }
+    var chest by remember { mutableStateOf(existing?.chest?.let { "%.1f".format(it) } ?: "") }
+    var hips by remember { mutableStateOf(existing?.hips?.let { "%.1f".format(it) } ?: "") }
+    var thigh by remember { mutableStateOf(existing?.thigh?.let { "%.1f".format(it) } ?: "") }
+    var arm by remember { mutableStateOf(existing?.arm?.let { "%.1f".format(it) } ?: "") }
+    var age by remember { mutableStateOf(existing?.age?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ColorSurface,
         title = {
-            Text("Новый замер", color = ColorOnBackground, fontWeight = FontWeight.Bold)
+            Text(
+                if (existing != null) "Редактировать замер" else "Новый замер",
+                color = ColorOnBackground,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
             ) {
                 MeasurementField("Вес, кг *", weight) { weight = it }
                 MeasurementField("Рост, см *", height) { height = it }
@@ -290,7 +321,8 @@ fun AddMeasurementDialog(
                     val h = height.toFloatOrNull() ?: return@TextButton
                     onConfirm(
                         BodyMeasurement(
-                            date = System.currentTimeMillis(),
+                            id = existing?.id ?: 0L,
+                            date = existing?.date ?: System.currentTimeMillis(),
                             weight = w,
                             height = h,
                             waist = waist.toFloatOrNull(),

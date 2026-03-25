@@ -225,6 +225,7 @@ private fun ExerciseDetailCard(
 ) {
     val ex = item.exercise
     val hasPrevData = item.prevE1RM > 0f
+    var showRecTip by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -234,6 +235,13 @@ private fun ExerciseDetailCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            val chipYellow = Color(0xFFFFD60A)
+            val (chipText, chipColor) = when (item.recommendation) {
+                "INCREASE" -> "↑ Увеличить вес" to ColorSecondary
+                "DECREASE" -> "↓ Снизить вес" to ColorError
+                else -> "По плану" to chipYellow
+            }
+
             // Header: name + recommendation
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -250,15 +258,42 @@ private fun ExerciseDetailCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.width(8.dp))
-                val recColor = when (item.recommendation) {
-                    "⬆" -> ColorSecondary
-                    "⚠" -> ColorError
-                    else -> ColorPrimary
+                Surface(
+                    onClick = { showRecTip = true },
+                    shape = RoundedCornerShape(8.dp),
+                    color = chipColor.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.3f))
+                ) {
+                    Text(
+                        text = chipText,
+                        color = chipColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
-                Text(
-                    text = item.recommendation,
-                    fontSize = 20.sp,
-                    color = recColor
+            }
+
+            if (showRecTip) {
+                val tipText = when (item.recommendation) {
+                    "INCREASE" -> "e1RM вырос более чем на 2.5% по сравнению с прошлой тренировкой. Можно увеличить рабочий вес."
+                    "DECREASE" -> "e1RM снизился более чем на 2.5%. Рекомендуется снизить рабочий вес или повторения."
+                    else -> "Результаты стабильны. Продолжайте работать по текущему плану."
+                }
+                AlertDialog(
+                    onDismissRequest = { showRecTip = false },
+                    containerColor = ColorSurface,
+                    title = {
+                        Text(chipText, color = chipColor, fontWeight = FontWeight.Bold)
+                    },
+                    text = {
+                        Text(tipText, color = ColorOnSurface)
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showRecTip = false }) {
+                            Text("Понятно", color = ColorPrimary)
+                        }
+                    }
                 )
             }
 
