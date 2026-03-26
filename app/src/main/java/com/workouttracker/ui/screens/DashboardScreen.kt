@@ -48,8 +48,18 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            val greeting = remember(state.userName) {
+                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                val timeGreeting = when (hour) {
+                    in 6..11 -> "Доброе утро"
+                    in 12..17 -> "Добрый день"
+                    in 18..21 -> "Добрый вечер"
+                    else -> "Доброй ночи"
+                }
+                if (state.userName.isNotBlank()) "$timeGreeting, ${state.userName}!" else timeGreeting
+            }
             Text(
-                "Главная",
+                greeting,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = ColorOnBackground

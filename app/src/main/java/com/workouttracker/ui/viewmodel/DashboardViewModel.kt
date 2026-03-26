@@ -2,6 +2,7 @@ package com.workouttracker.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.workouttracker.data.db.dao.UserDao
 import com.workouttracker.data.db.entities.SessionStatus
 import com.workouttracker.data.db.entities.WorkoutSession
 import com.workouttracker.data.db.entities.WorkoutSessionExercise
@@ -15,6 +16,7 @@ import javax.inject.Inject
 import com.workouttracker.domain.usecase.BodyMetricsCalculator
 
 data class DashboardState(
+    val userName: String = "",
     val nextSession: WorkoutSession? = null,
     val nextSessionExercises: List<WorkoutSessionExercise> = emptyList(),
     val lastSession: WorkoutSession? = null,
@@ -33,6 +35,7 @@ data class DashboardState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    private val userDao: UserDao,
     private val scheduleRepository: ScheduleRepository,
     private val sessionRepository: SessionRepository,
     private val bodyTrackerRepository: BodyTrackerRepository
@@ -42,7 +45,16 @@ class DashboardViewModel @Inject constructor(
     val state: StateFlow<DashboardState> = _state.asStateFlow()
 
     init {
+        loadUserName()
         loadDashboard()
+    }
+
+    private fun loadUserName() {
+        viewModelScope.launch {
+            userDao.getUser().collect { user ->
+                _state.update { it.copy(userName = user?.name ?: "") }
+            }
+        }
     }
 
     private fun dayStart(millis: Long): Long {
@@ -132,7 +144,7 @@ class DashboardViewModel @Inject constructor(
                 val bodyFatChange = if (bodyFat != null && firstBodyFat != null && latest?.id != first?.id)
                     bodyFat - firstBodyFat else null
 
-                _state.value = DashboardState(
+                _state.update { it.copy(
                     nextSession = nextSession,
                     nextSessionExercises = nextSessionExercises,
                     lastSession = lastSession,
@@ -147,7 +159,7 @@ class DashboardViewModel @Inject constructor(
                     workoutCount = workoutCount,
                     avgRir = avgRir,
                     avgVolume = avgVolume
-                )
+                ) }
             }
         }
     }

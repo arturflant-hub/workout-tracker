@@ -202,6 +202,17 @@ class BackupViewModel @Inject constructor(
         }
     }
 
+    fun switchAccount() {
+        backupManager.signOut()
+        _state.update {
+            it.copy(
+                isSignedIn = false,
+                accountEmail = null,
+                needsSignIn = true
+            )
+        }
+    }
+
     fun onRecoveryResult(data: Intent?) {
         onSignInResult(data)
         _state.update { it.copy(recoveryIntent = null) }
