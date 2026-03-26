@@ -131,6 +131,30 @@ States: active session → today planned → nearest upcoming → empty.
 - Если добавлена новая фича или изменена архитектура — обновить соответствующий раздел выше
 - Это правило распространяется на Claude и на любого разработчика
 
+## Google Drive API — настройка
+
+Для работы резервного копирования необходима настройка в Google Cloud Console (бесплатно):
+
+### 1. Создать проект
+- Открыть https://console.cloud.google.com/
+- Выпадающий список проектов (сверху) → **New Project** → имя `WorkoutTracker` → **Create**
+
+### 2. Включить Google Drive API
+- Левое меню → **APIs & Services** → **Library** → поиск `Google Drive API` → **Enable**
+
+### 3. OAuth Consent Screen
+- **APIs & Services** → **OAuth consent screen** → **External** → **Create**
+- App name: `Workout Tracker`, email-ы разработчика
+- Scopes → **Add or Remove Scopes** → добавить `https://www.googleapis.com/auth/drive.file`
+- Test users → добавить Gmail для тестирования
+
+### 4. OAuth Client ID
+- **APIs & Services** → **Credentials** → **+ Create Credentials** → **OAuth client ID**
+- Application type: **Android**
+- Package name: `com.workouttracker`
+- SHA-1: получить командой `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
+- Для release — SHA-1 из release keystore
+
 ## Key Architectural Rules
 
 - Business logic only in `domain/` — NOT in ViewModel
@@ -140,11 +164,15 @@ States: active session → today planned → nearest upcoming → empty.
 - `StateFlow` everywhere, no `LiveData`
 - Date formatting → `SimpleDateFormat` with `Locale("ru")`
 - Design: dark bg `#0F0F0F`, surface `#1C1C1E`, primary `#6C63FF`, secondary `#30D158`, rounded corners 12-16dp
+- При изменении состава пользовательских данных (новые таблицы, миграции, новые SharedPreferences) — обязательно проверить и доработать логику резервного копирования в `GoogleDriveBackupManager`
 
 ## История изменений
 
 | Дата | Commit | Что сделано | Файлы |
 |------|--------|-------------|-------|
+| 2026-03-27 | — | feat: выбор из нескольких бэкапов при восстановлении, удаление бэкапов с Google Drive, фикс бэкапа WAL/SHM файлов (антропометрия), инструкция Google API в CLAUDE.md | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, CLAUDE.md |
+| 2026-03-27 | — | feat: резервное копирование в Google Drive — создание и восстановление бэкапа (ZIP с БД + SharedPrefs + метаданные), Google Sign-In, новый экран BackupScreen | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, NavGraph.kt, SettingsScreen.kt, build.gradle.kts, libs.versions.toml, AndroidManifest.xml, proguard-rules.pro |
+| 2026-03-26 | — | feat: тултипы по тапу на точках/столбцах графиков + подписи оси Y (значения + единицы) на всех 5 графиках Статистики | StatisticsScreen.kt |
 | 2026-03-24 | feat/ver2 | feat: кнопка "Сохранить изменения" в диалоге упражнения — появляется когда данные сетов изменились относительно состояния при открытии, сохраняет все сеты в БД | ActiveWorkoutScreen.kt, ActiveWorkoutViewModel.kt |
 | 2026-03-24 | feat/ver2 | fix: "Последняя тренировка" — тоннаж суммируется по всем сессиям за последний тренировочный день, показывает "N тренировки за день" если > 1 | DashboardViewModel.kt, DashboardScreen.kt |
 | 2026-03-24 | feat/ver2 | fix: карточка рекомендации в истории — заголовок + явные метки (↑ Увеличить вес / ↓ Снизить вес / → Добавить повторения) вместо непонятных эмодзи | StatisticsScreen.kt |
