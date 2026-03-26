@@ -19,16 +19,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.workouttracker.data.db.entities.SessionStatus
@@ -130,7 +136,9 @@ private fun ChartsTabContent(
             } else {
                 TypedBarChart(
                     points = state.tonnagePoints.map { Triple(it.date, it.tonnage, it.programType) },
-                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    yAxisLabel = "кг",
+                    tooltipLabel = "Тоннаж"
                 )
                 ChartDateLabels(
                     dates = state.tonnagePoints.map { it.date },
@@ -162,7 +170,9 @@ private fun ChartsTabContent(
             } else {
                 TypedBarChart(
                     points = state.weeklyVolumePoints.map { Triple(it.weekStart, it.tonnage, it.programType) },
-                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    yAxisLabel = "кг",
+                    tooltipLabel = "Объём"
                 )
                 ChartDateLabels(
                     dates = state.weeklyVolumePoints.map { it.weekStart },
@@ -218,7 +228,11 @@ private fun ChartsTabContent(
                     LineChart(
                         points = state.exerciseProgressPoints.map { it.date.toFloat() to it.e1rm },
                         lineColor = ColorSecondary,
-                        modifier = Modifier.fillMaxWidth().height(160.dp)
+                        modifier = Modifier.fillMaxWidth().height(160.dp),
+                        yAxisLabel = "кг",
+                        tooltipLabel = "e1RM",
+                        rawValues = state.exerciseProgressPoints.map { it.e1rm },
+                        dates = state.exerciseProgressPoints.map { it.date }
                     )
                     ChartDateLabels(
                         dates = state.exerciseProgressPoints.map { it.date },
@@ -241,7 +255,11 @@ private fun ChartsTabContent(
                 LineChart(
                     points = state.bodyWeightPoints.map { it.date.toFloat() to it.weight },
                     lineColor = ColorPrimary,
-                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    yAxisLabel = "кг",
+                    tooltipLabel = "Вес",
+                    rawValues = state.bodyWeightPoints.map { it.weight },
+                    dates = state.bodyWeightPoints.map { it.date }
                 )
                 ChartDateLabels(
                     dates = state.bodyWeightPoints.map { it.date },
@@ -257,7 +275,11 @@ private fun ChartsTabContent(
                 LineChart(
                     points = state.bodyFatPoints.map { it.date.toFloat() to it.bodyFat },
                     lineColor = ColorError,
-                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    yAxisLabel = "%",
+                    tooltipLabel = "Жир",
+                    rawValues = state.bodyFatPoints.map { it.bodyFat },
+                    dates = state.bodyFatPoints.map { it.date }
                 )
                 ChartDateLabels(
                     dates = state.bodyFatPoints.map { it.date },
@@ -1082,7 +1104,11 @@ fun EmptyChartMessage(text: String = "Недостаточно данных") {
 fun LineChart(
     points: List<Pair<Float, Float>>,
     lineColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    yAxisLabel: String = "",
+    tooltipLabel: String = "",
+    rawValues: List<Float> = emptyList(),
+    dates: List<Long> = emptyList()
 ) {
     if (points.size < 2) {
         Canvas(modifier = modifier) {
@@ -1091,6 +1117,9 @@ fun LineChart(
         return
     }
 
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    val sdf = remember { SimpleDateFormat("d.MM", Locale("ru")) }
+
     val minX = points.minOf { it.first }
     val maxX = points.maxOf { it.first }
     val minY = points.minOf { it.second }
@@ -1098,23 +1127,76 @@ fun LineChart(
     val rangeX = (maxX - minX).takeIf { it > 0 } ?: 1f
     val rangeY = (maxY - minY).takeIf { it > 0 } ?: 1f
 
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.pointerInput(points) {
+            detectTapGestures { tapOffset ->
+                val yAxisWidth = if (yAxisLabel.isNotEmpty()) 40.dp.toPx() else 16.dp.toPx()
+                val padding = 16.dp.toPx()
+                val drawWidth = size.width - yAxisWidth - padding
+                val drawHeight = size.height.toFloat() - padding * 2
+
+                var closest = -1
+                var minDist = Float.MAX_VALUE
+                points.forEachIndexed { i, (x, y) ->
+                    val cx = yAxisWidth + (x - minX) / rangeX * drawWidth
+                    val cy = padding + drawHeight - (y - minY) / rangeY * drawHeight
+                    val dist = kotlin.math.sqrt((tapOffset.x - cx) * (tapOffset.x - cx) + (tapOffset.y - cy) * (tapOffset.y - cy))
+                    if (dist < minDist) { minDist = dist; closest = i }
+                }
+                selectedIndex = if (minDist < 40.dp.toPx() && closest >= 0) closest else null
+            }
+        }
+    ) {
+        val yAxisWidth = if (yAxisLabel.isNotEmpty()) 40.dp.toPx() else 16.dp.toPx()
         val padding = 16.dp.toPx()
-        val drawWidth = size.width - padding * 2
+        val drawWidth = size.width - yAxisWidth - padding
         val drawHeight = size.height - padding * 2
 
-        fun xFor(x: Float) = padding + (x - minX) / rangeX * drawWidth
+        fun xFor(x: Float) = yAxisWidth + (x - minX) / rangeX * drawWidth
         fun yFor(y: Float) = padding + drawHeight - (y - minY) / rangeY * drawHeight
 
-        val gridLines = 4
-        repeat(gridLines + 1) { i ->
-            val y = padding + drawHeight * i / gridLines
-            drawLine(
-                color = ColorSurfaceVariant,
-                start = Offset(padding, y),
-                end = Offset(padding + drawWidth, y),
-                strokeWidth = 1.dp.toPx()
+        // Y-axis labels
+        if (yAxisLabel.isNotEmpty()) {
+            val textPaint = android.graphics.Paint().apply {
+                color = 0xFF8E8E93.toInt()
+                textSize = 10.sp.toPx()
+                isAntiAlias = true
+            }
+            val gridLines = 4
+            repeat(gridLines + 1) { i ->
+                val y = padding + drawHeight * i / gridLines
+                drawLine(
+                    color = ColorSurfaceVariant,
+                    start = Offset(yAxisWidth, y),
+                    end = Offset(yAxisWidth + drawWidth, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+                val value = maxY - (maxY - minY) * i / gridLines
+                val label = if (value >= 100) value.roundToInt().toString() else String.format("%.1f", value)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label, 2.dp.toPx(), y + 4.dp.toPx(), textPaint
+                )
+            }
+            // Unit label at top
+            val unitPaint = android.graphics.Paint().apply {
+                color = 0xFF8E8E93.toInt()
+                textSize = 9.sp.toPx()
+                isAntiAlias = true
+            }
+            drawContext.canvas.nativeCanvas.drawText(
+                yAxisLabel, 2.dp.toPx(), padding - 4.dp.toPx(), unitPaint
             )
+        } else {
+            val gridLines = 4
+            repeat(gridLines + 1) { i ->
+                val y = padding + drawHeight * i / gridLines
+                drawLine(
+                    color = ColorSurfaceVariant,
+                    start = Offset(yAxisWidth, y),
+                    end = Offset(yAxisWidth + drawWidth, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
         }
 
         val path = Path()
@@ -1131,8 +1213,67 @@ fun LineChart(
         fillPath.close()
         drawPath(fillPath, color = lineColor.copy(alpha = 0.1f))
 
-        points.forEach { (x, y) ->
-            drawCircle(color = lineColor, radius = 4.dp.toPx(), center = Offset(xFor(x), yFor(y)))
+        points.forEachIndexed { i, (x, y) ->
+            val isSelected = i == selectedIndex
+            drawCircle(
+                color = lineColor,
+                radius = if (isSelected) 6.dp.toPx() else 4.dp.toPx(),
+                center = Offset(xFor(x), yFor(y))
+            )
+            if (isSelected) {
+                drawCircle(
+                    color = Color.White,
+                    radius = 3.dp.toPx(),
+                    center = Offset(xFor(x), yFor(y))
+                )
+            }
+        }
+
+        // Tooltip
+        val si = selectedIndex
+        if (si != null && si in points.indices) {
+            val (px, py) = points[si]
+            val cx = xFor(px)
+            val cy = yFor(py)
+
+            val displayValue = rawValues.getOrNull(si) ?: py
+            val dateStr = if (dates.isNotEmpty() && si in dates.indices) sdf.format(Date(dates[si])) else ""
+            val tooltipText = if (dateStr.isNotEmpty()) "$dateStr\n$tooltipLabel: ${formatChartValue(displayValue)} $yAxisLabel"
+                              else "$tooltipLabel: ${formatChartValue(displayValue)} $yAxisLabel"
+
+            val tooltipPaint = android.graphics.Paint().apply {
+                color = 0xFFFFFFFF.toInt()
+                textSize = 12.sp.toPx()
+                isAntiAlias = true
+            }
+            val lines = tooltipText.split("\n")
+            val lineHeight = tooltipPaint.fontMetrics.bottom - tooltipPaint.fontMetrics.top
+            val textWidths = lines.map { tooltipPaint.measureText(it) }
+            val maxTextWidth = textWidths.max()
+            val tooltipPadding = 8.dp.toPx()
+            val tooltipWidth = maxTextWidth + tooltipPadding * 2
+            val tooltipHeight = lineHeight * lines.size + tooltipPadding * 2
+
+            var tx = cx - tooltipWidth / 2
+            if (tx < 0f) tx = 4.dp.toPx()
+            if (tx + tooltipWidth > size.width) tx = size.width - tooltipWidth - 4.dp.toPx()
+            val ty = cy - tooltipHeight - 12.dp.toPx()
+            val finalTy = if (ty < 0f) cy + 12.dp.toPx() else ty
+
+            drawRoundRect(
+                color = Color(0xE62C2C2E),
+                topLeft = Offset(tx, finalTy),
+                size = Size(tooltipWidth, tooltipHeight),
+                cornerRadius = CornerRadius(8.dp.toPx())
+            )
+            lines.forEachIndexed { lineIdx, line ->
+                drawContext.canvas.nativeCanvas.drawText(
+                    line,
+                    tx + tooltipPadding,
+                    finalTy + tooltipPadding - tooltipPaint.fontMetrics.top + lineIdx * lineHeight,
+                    tooltipPaint
+                )
+            }
         }
     }
 }
@@ -1140,28 +1281,84 @@ fun LineChart(
 @Composable
 fun TypedBarChart(
     points: List<Triple<Long, Float, String>>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    yAxisLabel: String = "",
+    tooltipLabel: String = ""
 ) {
     if (points.isEmpty()) return
+
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    val sdf = remember { SimpleDateFormat("d.MM", Locale("ru")) }
     val maxVal = points.maxOf { it.second }.takeIf { it > 0f } ?: 1f
 
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.pointerInput(points) {
+            detectTapGestures { tapOffset ->
+                val yAxisWidth = if (yAxisLabel.isNotEmpty()) 40.dp.toPx() else 8.dp.toPx()
+                val padH = 8.dp.toPx()
+                val padV = 12.dp.toPx()
+                val drawWidth = size.width - yAxisWidth - padH
+                val spacing = drawWidth / points.size
+
+                var found = -1
+                points.forEachIndexed { idx, _ ->
+                    val barX = yAxisWidth + idx * spacing
+                    if (tapOffset.x >= barX && tapOffset.x < barX + spacing) {
+                        found = idx
+                    }
+                }
+                selectedIndex = if (found >= 0) found else null
+            }
+        }
+    ) {
+        val yAxisWidth = if (yAxisLabel.isNotEmpty()) 40.dp.toPx() else 8.dp.toPx()
         val padH = 8.dp.toPx()
         val padV = 12.dp.toPx()
-        val drawWidth = size.width - padH * 2
+        val drawWidth = size.width - yAxisWidth - padH
         val drawHeight = size.height - padV
 
         val barWidth = (drawWidth / points.size * 0.6f).coerceAtLeast(4.dp.toPx())
         val spacing = drawWidth / points.size
 
-        repeat(4) { i ->
-            val y = padV + drawHeight * i / 4
-            drawLine(
-                color = ColorSurfaceVariant,
-                start = Offset(padH, y),
-                end = Offset(padH + drawWidth, y),
-                strokeWidth = 1.dp.toPx()
+        // Y-axis labels
+        if (yAxisLabel.isNotEmpty()) {
+            val textPaint = android.graphics.Paint().apply {
+                color = 0xFF8E8E93.toInt()
+                textSize = 10.sp.toPx()
+                isAntiAlias = true
+            }
+            repeat(5) { i ->
+                val y = padV + drawHeight * i / 4
+                drawLine(
+                    color = ColorSurfaceVariant,
+                    start = Offset(yAxisWidth, y),
+                    end = Offset(yAxisWidth + drawWidth, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+                val value = maxVal - maxVal * i / 4
+                val label = if (value >= 100) value.roundToInt().toString() else String.format("%.1f", value)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label, 2.dp.toPx(), y + 4.dp.toPx(), textPaint
+                )
+            }
+            val unitPaint = android.graphics.Paint().apply {
+                color = 0xFF8E8E93.toInt()
+                textSize = 9.sp.toPx()
+                isAntiAlias = true
+            }
+            drawContext.canvas.nativeCanvas.drawText(
+                yAxisLabel, 2.dp.toPx(), padV - 4.dp.toPx(), unitPaint
             )
+        } else {
+            repeat(4) { i ->
+                val y = padV + drawHeight * i / 4
+                drawLine(
+                    color = ColorSurfaceVariant,
+                    start = Offset(yAxisWidth, y),
+                    end = Offset(yAxisWidth + drawWidth, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
         }
 
         points.forEachIndexed { idx, (_, value, type) ->
@@ -1171,10 +1368,76 @@ fun TypedBarChart(
                 else -> Color(0xFF3A3A3C)
             }
             val barHeight = (value / maxVal) * drawHeight
-            val x = padH + idx * spacing + (spacing - barWidth) / 2
+            val x = yAxisWidth + idx * spacing + (spacing - barWidth) / 2
             val y = padV + drawHeight - barHeight
-            drawRect(color = barColor, topLeft = Offset(x, y), size = Size(barWidth, barHeight))
+            val isSelected = idx == selectedIndex
+            drawRect(
+                color = if (isSelected) barColor.copy(alpha = 1f) else barColor.copy(alpha = 0.8f),
+                topLeft = Offset(x, y),
+                size = Size(barWidth, barHeight)
+            )
+            if (isSelected) {
+                drawRect(
+                    color = Color.White.copy(alpha = 0.3f),
+                    topLeft = Offset(x, y),
+                    size = Size(barWidth, barHeight)
+                )
+            }
         }
+
+        // Tooltip
+        val si = selectedIndex
+        if (si != null && si in points.indices) {
+            val (date, value, _) = points[si]
+            val barHeight = (value / maxVal) * drawHeight
+            val barX = yAxisWidth + si * spacing + spacing / 2
+            val barY = padV + drawHeight - barHeight
+
+            val dateStr = sdf.format(Date(date))
+            val tooltipText = "$dateStr\n$tooltipLabel: ${formatChartValue(value)} $yAxisLabel"
+
+            val tooltipPaint = android.graphics.Paint().apply {
+                color = 0xFFFFFFFF.toInt()
+                textSize = 12.sp.toPx()
+                isAntiAlias = true
+            }
+            val lines = tooltipText.split("\n")
+            val lineHeight = tooltipPaint.fontMetrics.bottom - tooltipPaint.fontMetrics.top
+            val textWidths = lines.map { tooltipPaint.measureText(it) }
+            val maxTextWidth = textWidths.max()
+            val tooltipPadding = 8.dp.toPx()
+            val tooltipW = maxTextWidth + tooltipPadding * 2
+            val tooltipH = lineHeight * lines.size + tooltipPadding * 2
+
+            var tx = barX - tooltipW / 2
+            if (tx < 0f) tx = 4.dp.toPx()
+            if (tx + tooltipW > size.width) tx = size.width - tooltipW - 4.dp.toPx()
+            val ty = barY - tooltipH - 8.dp.toPx()
+            val finalTy = if (ty < 0f) barY + 8.dp.toPx() else ty
+
+            drawRoundRect(
+                color = Color(0xE62C2C2E),
+                topLeft = Offset(tx, finalTy),
+                size = Size(tooltipW, tooltipH),
+                cornerRadius = CornerRadius(8.dp.toPx())
+            )
+            lines.forEachIndexed { lineIdx, line ->
+                drawContext.canvas.nativeCanvas.drawText(
+                    line,
+                    tx + tooltipPadding,
+                    finalTy + tooltipPadding - tooltipPaint.fontMetrics.top + lineIdx * lineHeight,
+                    tooltipPaint
+                )
+            }
+        }
+    }
+}
+
+private fun formatChartValue(value: Float): String {
+    return if (value >= 100 || value == value.roundToInt().toFloat()) {
+        value.roundToInt().toString()
+    } else {
+        String.format("%.1f", value)
     }
 }
 

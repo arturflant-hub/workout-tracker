@@ -15,3 +15,15 @@
 
 # Coroutines
 -dontwarn kotlinx.coroutines.**
+
+# Google API Client
+-keep class com.google.api.** { *; }
+-keep class com.google.http.** { *; }
+-dontwarn com.google.api.client.**
+-dontwarn com.google.http.client.**
+-dontwarn org.apache.http.**
+-dontwarn com.google.common.**
+-dontwarn javax.naming.**
+
+# Gson used by Google HTTP Client
+-keep class com.google.gson.** { *; }

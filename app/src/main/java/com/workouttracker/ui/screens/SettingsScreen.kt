@@ -92,6 +92,20 @@ fun SettingsScreen(
             onClick = { showTimerDialog = true }
         )
 
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            "Данные",
+            style = MaterialTheme.typography.labelMedium,
+            color = ColorOnSurface
+        )
+
+        SettingsItem(
+            title = "Резервное копирование",
+            subtitle = "Google Drive: сохранение и восстановление",
+            onClick = { navController.navigate("backup") }
+        )
+
         Spacer(Modifier.height(16.dp))
 
         // Version block — tap 4 times to open dev menu

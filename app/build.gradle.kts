@@ -45,6 +45,13 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.13"
     }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
 }
 
 dependencies {
@@ -71,6 +78,11 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.reorderable)
+
+    implementation(libs.play.services.auth)
+    implementation(libs.google.api.client.android)
+    implementation(libs.google.api.services.drive)
+    implementation(libs.google.http.client.gson)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
