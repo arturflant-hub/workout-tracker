@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.workouttracker.ui.components.LocalTopToastState
 import com.workouttracker.ui.navigation.Screen
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.DashboardState
@@ -32,6 +34,8 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val toastState = LocalTopToastState.current
+    var showAddMeasurementDialog by remember { mutableStateOf(false) }
     val sdf = remember { SimpleDateFormat("EEE, d MMM", Locale("ru")) }
     val todayStart = remember {
         val c = java.util.Calendar.getInstance()
@@ -58,12 +62,73 @@ fun DashboardScreen(
                 }
                 if (state.userName.isNotBlank()) "$timeGreeting, ${state.userName}!" else timeGreeting
             }
-            Text(
-                greeting,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = ColorOnBackground
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    greeting,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorOnBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = { navController.navigate(Screen.FeatureOnboarding.route) }
+                ) {
+                    Icon(
+                        Icons.Outlined.HelpOutline,
+                        contentDescription = "Помощь",
+                        tint = ColorOnSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+
+        // Body measurement banner
+        if (state.showBodyMeasurementBanner) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAddMeasurementDialog = true },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2520)),
+                    border = BorderStroke(1.dp, Color(0xFFFF9F0A).copy(alpha = 0.4f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("📏", fontSize = 24.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Заполните замеры тела",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFFF9F0A)
+                            )
+                            Text(
+                                "Для корректного расчёта % жира и отслеживания прогресса",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ColorOnSurface
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = Color(0xFFFF9F0A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
 
         // Next workout card
@@ -340,6 +405,18 @@ fun DashboardScreen(
                 )
             }
         }
+    }
+
+    if (showAddMeasurementDialog) {
+        AddMeasurementDialog(
+            onDismiss = { showAddMeasurementDialog = false },
+            onConfirm = { measurement ->
+                viewModel.insertBodyMeasurement(measurement)
+                showAddMeasurementDialog = false
+                toastState.show("Замеры сохранены")
+            },
+            existing = state.existingMeasurement
+        )
     }
 }
 

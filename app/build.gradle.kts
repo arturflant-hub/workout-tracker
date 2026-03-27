@@ -13,8 +13,8 @@ android {
         applicationId = "com.workouttracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.3.1"
     }
 
     buildTypes {
@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
+    implementation("androidx.compose.foundation:foundation")
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.room.runtime)

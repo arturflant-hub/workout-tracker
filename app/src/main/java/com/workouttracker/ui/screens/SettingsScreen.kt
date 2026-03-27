@@ -1,12 +1,14 @@
 package com.workouttracker.ui.screens
 
 import android.content.Context
-import android.widget.Toast
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -16,12 +18,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.workouttracker.ui.navigation.Screen
+import com.workouttracker.ui.components.LocalTopToastState
+import com.workouttracker.ui.components.ToastType
+import com.workouttracker.ui.components.TopToastHost
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.DevToolsViewModel
 import com.workouttracker.ui.viewmodel.SettingsViewModel
@@ -35,6 +47,7 @@ fun SettingsScreen(
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val toastState = LocalTopToastState.current
     val prefs = remember { context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE) }
     var restDuration by remember { mutableStateOf(prefs.getInt("rest_timer_duration", 90)) }
     var showTimerDialog by remember { mutableStateOf(false) }
@@ -188,6 +201,34 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+
+        val annotatedText = buildAnnotatedString {
+            withStyle(SpanStyle(color = ColorOnSurface.copy(alpha = 0.4f))) {
+                append("app by ")
+            }
+            pushStringAnnotation(tag = "URL", annotation = "https://t.me/ArtCla")
+            withStyle(SpanStyle(color = ColorPrimary, textDecoration = TextDecoration.Underline)) {
+                append("Cla")
+            }
+            pop()
+        }
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            ClickableText(
+                text = annotatedText,
+                style = MaterialTheme.typography.bodySmall,
+                onClick = { offset ->
+                    annotatedText.getStringAnnotations("URL", offset, offset)
+                        .firstOrNull()?.let {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it.item)))
+                        }
+                }
+            )
+        }
+
         Spacer(Modifier.height(20.dp))
     }
 
@@ -206,6 +247,7 @@ fun SettingsScreen(
     if (showDevMenu) {
         DevToolsDialog(
             viewModel = devToolsViewModel,
+            navController = navController,
             onDismiss = { showDevMenu = false }
         )
     }
@@ -227,9 +269,10 @@ fun SettingsScreen(
 @Composable
 fun DevToolsDialog(
     viewModel: DevToolsViewModel,
+    navController: NavController,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
+    val toastState = LocalTopToastState.current
     var pendingAction by remember { mutableStateOf<DevAction?>(null) }
 
     if (pendingAction != null) {
@@ -254,8 +297,19 @@ fun DevToolsDialog(
                 TextButton(
                     onClick = {
                         action.execute(viewModel) {
-                            Toast.makeText(context, action.toastMessage, Toast.LENGTH_SHORT).show()
-                            pendingAction = null
+                            if (action.isFullReset) {
+                                pendingAction = null
+                                onDismiss()
+                                navController.navigate(Screen.Onboarding.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            } else {
+                                toastState.show(
+                                    action.toastMessage,
+                                    if (action.isPositive) ToastType.SUCCESS else ToastType.SUCCESS
+                                )
+                                pendingAction = null
+                            }
                         }
                     }
                 ) {
@@ -275,71 +329,100 @@ fun DevToolsDialog(
         return
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = ColorSurface,
-        icon = {
-            Icon(Icons.Default.BugReport, null, tint = ColorPrimary)
-        },
-        title = {
-            Text("Меню разработчика", color = ColorOnBackground, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DevActions.all.forEach { action ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { pendingAction = action },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = when {
-                                action.isDangerous -> ColorError.copy(alpha = 0.08f)
-                                action.isPositive -> ColorSecondary.copy(alpha = 0.08f)
-                                else -> ColorSurfaceVariant
-                            }
-                        ),
-                        border = BorderStroke(
-                            1.dp,
-                            when {
-                                action.isDangerous -> ColorError.copy(alpha = 0.3f)
-                                action.isPositive -> ColorSecondary.copy(alpha = 0.3f)
-                                else -> ColorSurfaceVariant
-                            }
-                        )
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = ColorSurface)
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    action.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = when {
-                                        action.isDangerous -> ColorError
-                                        action.isPositive -> ColorSecondary
-                                        else -> ColorOnBackground
+                        Icon(Icons.Default.BugReport, null, tint = ColorPrimary)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Меню разработчика",
+                        color = ColorOnBackground,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DevActions.all.forEach { action ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { pendingAction = action },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = when {
+                                        action.isDangerous -> ColorError.copy(alpha = 0.08f)
+                                        action.isPositive -> ColorSecondary.copy(alpha = 0.08f)
+                                        else -> ColorSurfaceVariant
+                                    }
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    when {
+                                        action.isDangerous -> ColorError.copy(alpha = 0.3f)
+                                        action.isPositive -> ColorSecondary.copy(alpha = 0.3f)
+                                        else -> ColorSurfaceVariant
                                     }
                                 )
-                                Text(
-                                    action.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = ColorOnSurface
-                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            action.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = when {
+                                                action.isDangerous -> ColorError
+                                                action.isPositive -> ColorSecondary
+                                                else -> ColorOnBackground
+                                            }
+                                        )
+                                        Text(
+                                            action.subtitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = ColorOnSurface
+                                        )
+                                    }
+                                }
                             }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text("Закрыть", color = ColorOnSurface)
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Закрыть", color = ColorOnSurface)
-            }
+
+            // Toast overlay inside the same Dialog window
+            TopToastHost(state = toastState)
         }
-    )
+    }
 }
 
 private data class DevAction(
@@ -348,6 +431,7 @@ private data class DevAction(
     val confirmText: String,
     val isDangerous: Boolean = false,
     val isPositive: Boolean = false,
+    val isFullReset: Boolean = false,
     val confirmButtonText: String = "Удалить",
     val toastMessage: String = "Готово",
     val execute: (DevToolsViewModel, () -> Unit) -> Unit
@@ -394,9 +478,10 @@ private object DevActions {
         ),
         DevAction(
             title = "Полный сброс",
-            subtitle = "Удаляет все данные из локальной базы",
-            confirmText = "ВСЕ данные приложения будут удалены: тренировки, расписание, программы, антропометрия. Это действие необратимо.",
+            subtitle = "Удаляет ВСЕ данные и открывает регистрацию",
+            confirmText = "ВСЕ данные приложения будут удалены: тренировки, расписание, программы, антропометрия, профиль пользователя. После сброса откроется экран регистрации. Это действие необратимо.",
             isDangerous = true,
+            isFullReset = true,
             toastMessage = "Все данные удалены",
             execute = { vm, done -> vm.resetAll(done) }
         )
@@ -554,7 +639,9 @@ private fun ProfileEditDialog(
                             Text(
                                 label,
                                 color = if (selected) ColorPrimary else ColorOnSurface,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

@@ -13,9 +13,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.*
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import android.content.Context
 import com.workouttracker.data.db.dao.UserDao
+import com.workouttracker.ui.components.LocalTopToastState
+import com.workouttracker.ui.components.TopToastHost
+import com.workouttracker.ui.components.rememberTopToastState
 import com.workouttracker.ui.screens.*
 import com.workouttracker.ui.theme.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 
 sealed class BottomNavScreen(
     val route: String,
@@ -61,6 +67,7 @@ sealed class Screen(val route: String) {
     }
     object Backup : Screen("backup")
     object Onboarding : Screen("onboarding")
+    object FeatureOnboarding : Screen("feature_onboarding")
 }
 
 @Composable
@@ -75,6 +82,8 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
         startRoute = if (user == null) Screen.Onboarding.route else BottomNavScreen.Dashboard.route
     }
 
+    val topToastState = rememberTopToastState()
+
     if (startRoute == null) {
         // Loading state while checking user
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -88,6 +97,7 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
         topLevelRoutes.any { route == it } || route == "workout_tab"
     } ?: (startRoute != Screen.Onboarding.route)
 
+    CompositionLocalProvider(LocalTopToastState provides topToastState) {
     Scaffold(
         containerColor = ColorBackground,
         bottomBar = {
@@ -105,7 +115,14 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
                                     contentDescription = item.title
                                 )
                             },
-                            label = { Text(item.title) },
+                            label = {
+                                Text(
+                                    item.title,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    fontSize = 11.sp
+                                )
+                            },
                             selected = selected,
                             onClick = {
                                 navController.navigate(item.route) {
@@ -129,6 +146,7 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
             }
         }
     ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = startRoute!!,
@@ -136,9 +154,13 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
         ) {
             // Onboarding
             composable(Screen.Onboarding.route) {
+                val context = LocalContext.current
                 OnboardingScreen(
                     onComplete = {
-                        navController.navigate(BottomNavScreen.Dashboard.route) {
+                        val prefs = context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+                        val seen = prefs.getBoolean("feature_onboarding_seen", false)
+                        val target = if (!seen) Screen.FeatureOnboarding.route else BottomNavScreen.Dashboard.route
+                        navController.navigate(target) {
                             popUpTo(Screen.Onboarding.route) { inclusive = true }
                         }
                     }
@@ -227,6 +249,22 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
                 BackupScreen(navController = navController)
             }
 
+            composable(Screen.FeatureOnboarding.route) {
+                val context = LocalContext.current
+                FeatureOnboardingScreen(
+                    onFinish = {
+                        context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+                            .edit().putBoolean("feature_onboarding_seen", true).apply()
+                        val popped = navController.popBackStack(BottomNavScreen.Dashboard.route, inclusive = false)
+                        if (!popped) {
+                            navController.navigate(BottomNavScreen.Dashboard.route) {
+                                popUpTo(Screen.FeatureOnboarding.route) { inclusive = true }
+                            }
+                        }
+                    }
+                )
+            }
+
             composable(
                 route = Screen.WorkoutDetail.route,
                 arguments = listOf(navArgument("sessionId") { type = NavType.LongType })
@@ -235,5 +273,8 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
                 WorkoutDetailScreen(sessionId = sessionId, navController = navController)
             }
         }
+        TopToastHost(state = topToastState)
+        }
     }
+    } // CompositionLocalProvider
 }
