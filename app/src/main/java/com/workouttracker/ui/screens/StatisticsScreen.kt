@@ -8,6 +8,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +43,7 @@ import com.workouttracker.data.db.entities.SessionStatus
 import com.workouttracker.ui.navigation.Screen
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -59,8 +62,12 @@ fun StatisticsScreen(
     viewModel: StatisticsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Графики", "Календарь", "История")
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { tabs.size }
+    )
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -78,19 +85,21 @@ fun StatisticsScreen(
                     modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 8.dp)
                 )
                 TabRow(
-                    selectedTabIndex = selectedTab,
+                    selectedTabIndex = pagerState.currentPage,
                     containerColor = ColorSurface,
                     contentColor = ColorPrimary,
                     divider = { HorizontalDivider(color = ColorSurfaceVariant) }
                 ) {
                     tabs.forEachIndexed { index, title ->
                         Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
+                            selected = pagerState.currentPage == index,
+                            onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                            },
                             text = {
                                 Text(
                                     title,
-                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold
+                                    fontWeight = if (pagerState.currentPage == index) FontWeight.SemiBold
                                                  else FontWeight.Normal,
                                     style = MaterialTheme.typography.labelLarge
                                 )
@@ -103,10 +112,15 @@ fun StatisticsScreen(
             }
         }
 
-        when (selectedTab) {
-            0 -> ChartsTabContent(state = state, viewModel = viewModel)
-            1 -> CalendarTabContent(navController = navController)
-            2 -> HistoryTabContent(navController = navController)
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> ChartsTabContent(state = state, viewModel = viewModel)
+                1 -> CalendarTabContent(navController = navController)
+                2 -> HistoryTabContent(navController = navController)
+            }
         }
     }
 }

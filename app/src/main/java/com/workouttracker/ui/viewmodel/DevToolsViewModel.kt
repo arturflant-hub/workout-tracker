@@ -1,7 +1,10 @@
 package com.workouttracker.ui.viewmodel
 
+import android.app.Application
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.workouttracker.data.db.dao.UserDao
 import com.workouttracker.data.db.entities.*
 import com.workouttracker.data.repository.BodyTrackerRepository
 import com.workouttracker.data.repository.ProgramRepository
@@ -14,10 +17,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DevToolsViewModel @Inject constructor(
+    private val application: Application,
     private val sessionRepository: SessionRepository,
     private val scheduleRepository: ScheduleRepository,
     private val programRepository: ProgramRepository,
-    private val bodyTrackerRepository: BodyTrackerRepository
+    private val bodyTrackerRepository: BodyTrackerRepository,
+    private val userDao: UserDao
 ) : ViewModel() {
 
     fun resetWorkouts(onDone: () -> Unit = {}) {
@@ -54,6 +59,9 @@ class DevToolsViewModel @Inject constructor(
             scheduleRepository.deleteSchedule()
             programRepository.deleteAllPrograms()
             bodyTrackerRepository.deleteAll()
+            userDao.deleteAll()
+            application.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+                .edit().clear().apply()
             onDone()
         }
     }
@@ -65,6 +73,12 @@ class DevToolsViewModel @Inject constructor(
             scheduleRepository.deleteSchedule()
             programRepository.deleteAllPrograms()
             bodyTrackerRepository.deleteAll()
+            userDao.deleteAll()
+
+            // 1.5. Create user
+            userDao.insertUser(User(name = "Артём", units = "kg", gender = "male"))
+            application.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+                .edit().putBoolean("feature_onboarding_seen", true).apply()
 
             // 2. Create programs
             val programAId = programRepository.insertProgram(

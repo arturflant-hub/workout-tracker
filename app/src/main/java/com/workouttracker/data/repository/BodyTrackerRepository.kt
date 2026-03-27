@@ -14,6 +14,8 @@ class BodyTrackerRepository @Inject constructor(
 
     suspend fun getLatest(): BodyMeasurement? = dao.getLatest()
 
+    fun getLatestFlow(): Flow<BodyMeasurement?> = dao.getLatestFlow()
+
     suspend fun getFirst(): BodyMeasurement? = dao.getFirst()
 
     suspend fun insert(measurement: BodyMeasurement): Long = dao.insert(measurement)

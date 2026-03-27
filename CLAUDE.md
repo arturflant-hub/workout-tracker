@@ -115,6 +115,27 @@ States: active session → today planned → nearest upcoming → empty.
 - Body weight line chart
 - Body fat % line chart (Navy formula)
 
+### Feature 7 — Feature Onboarding (обучающий тур)
+**Экраны:** `FeatureOnboardingScreen.kt` + `FeatureOnboardingIllustrations.kt`
+- 5 шагов: "Программы A и B", "Умное расписание", "Тренировка с таймером", "Умная прогрессия", "Замеры и статистика"
+- `AnimatedContent` с горизонтальным slide, свайп через `detectHorizontalDragGestures`
+- Dot indicator (animated width: active 24dp, inactive 8dp), кнопки "Пропустить"/"Назад"/"Далее"/"Начать"
+- 5 Canvas-drawn иллюстраций с `Animatable` entrance-анимациями (tween 600-800ms)
+  - `IllustrationProgramsAB` — карточки A/B с изогнутой стрелкой
+  - `IllustrationSmartSchedule` — мини-календарь 2×7 кружков
+  - `IllustrationActiveWorkout` — круговой таймер + чипы сетов
+  - `IllustrationProgression` — тренд-линия + стрелка вверх + чип веса
+  - `IllustrationBodyStats` — столбчатая диаграмма + легенда
+
+**Навигация:** `Screen.FeatureOnboarding` route в `NavGraph.kt`
+- После регистрации: Onboarding → проверка `feature_onboarding_seen` → FeatureOnboarding или Dashboard
+- Кнопка "?" (`Icons.Outlined.HelpOutline`) на Dashboard для повторного просмотра
+- Bottom bar скрыт (route не в topLevelRoutes)
+
+**SharedPreferences:** ключ `feature_onboarding_seen` в `workout_prefs`
+- Устанавливается в `true` при завершении/пропуске
+- Сбрасывается при полном сбросе данных (DevTools)
+
 ## Правило самопроверки
 
 **После каждого изменения кода — обязательно перепроверить свою работу:**
@@ -170,6 +191,15 @@ States: active session → today planned → nearest upcoming → empty.
 
 | Дата | Commit | Что сделано | Файлы |
 |------|--------|-------------|-------|
+| 2026-03-27 | — | feat: TopToast — глобальная система тостов (зелёные/красные, сверху, с анимацией fade+slide), заменяет Android Toast. CompositionLocal для доступа из любого экрана | TopToast.kt, NavGraph.kt, DashboardScreen.kt, SettingsScreen.kt, BodyTrackerScreen.kt |
+| 2026-03-27 | — | feat: плашка-уведомление на Dashboard о заполнении антропометрии после онбординга, по клику открывает диалог замера, после сохранения — тост и плашка исчезает | DashboardScreen.kt, DashboardViewModel.kt |
+| 2026-03-27 | — | feat: полный сброс удаляет пользователя (имя/пол/возраст) и SharedPreferences, открывает экран регистрации | DevToolsViewModel.kt, UserDao.kt, SettingsScreen.kt |
+| 2026-03-27 | — | feat: обучающий тур (5 шагов с Canvas-иллюстрациями): программы A/B, расписание, тренировка с таймером, прогрессия, замеры. Кнопка "?" на Dashboard для повторного просмотра | FeatureOnboardingScreen.kt, FeatureOnboardingIllustrations.kt, NavGraph.kt, DashboardScreen.kt |
+| 2026-03-27 | — | feat: валидация полей антропометрии — запрет значения 0, подсветка ошибочных полей красным, тост ошибки, фильтрация ведущих нулей при вводе | BodyTrackerScreen.kt |
+| 2026-03-27 | — | fix: перенос слова «Мужской» на кнопке пола в настройках профиля (maxLines=1, softWrap=false) | SettingsScreen.kt |
+| 2026-03-27 | — | fix: сохранение выбранного таба (Календарь/История) в Статистике при навигации назад (rememberSaveable) | StatisticsScreen.kt |
+| 2026-03-27 | — | fix: моргание экрана при тосте — замена Dialog на Box overlay + локальный TopToastHost внутри модальных окон (AddMeasurementDialog переведён на Dialog+Card) | TopToast.kt, BodyTrackerScreen.kt |
+| 2026-03-27 | — | chore: версия приложения 1.3.1 (versionCode=3, versionName=1.3.1) | build.gradle.kts |
 | 2026-03-27 | — | feat: онбординг (3 шага: имя/пол/возраст), восстановление из бэкапа на онбординге, приветствие по времени суток на Dashboard, профиль в Настройках с редактированием, миграция БД v3→v4 (gender) | OnboardingScreen.kt, OnboardingViewModel.kt, SettingsViewModel.kt, NavGraph.kt, MainActivity.kt, DashboardScreen.kt, DashboardViewModel.kt, SettingsScreen.kt, User.kt, AppDatabase.kt, AppModule.kt, BodyMeasurementDao.kt |
 | 2026-03-27 | — | feat: выбор из нескольких бэкапов при восстановлении, удаление бэкапов с Google Drive, фикс бэкапа WAL/SHM файлов (антропометрия), инструкция Google API в CLAUDE.md | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, CLAUDE.md |
 | 2026-03-27 | — | feat: резервное копирование в Google Drive — создание и восстановление бэкапа (ZIP с БД + SharedPrefs + метаданные), Google Sign-In, новый экран BackupScreen | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, NavGraph.kt, SettingsScreen.kt, build.gradle.kts, libs.versions.toml, AndroidManifest.xml, proguard-rules.pro |

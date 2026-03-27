@@ -3,6 +3,7 @@ package com.workouttracker.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.workouttracker.data.db.dao.UserDao
+import com.workouttracker.data.db.entities.BodyMeasurement
 import com.workouttracker.data.db.entities.SessionStatus
 import com.workouttracker.data.db.entities.WorkoutSession
 import com.workouttracker.data.db.entities.WorkoutSessionExercise
@@ -30,7 +31,9 @@ data class DashboardState(
     val totalTonnage: Float = 0f,
     val workoutCount: Int = 0,
     val avgRir: Float? = null,
-    val avgVolume: Float? = null
+    val avgVolume: Float? = null,
+    val showBodyMeasurementBanner: Boolean = false,
+    val existingMeasurement: BodyMeasurement? = null
 )
 
 @HiltViewModel
@@ -47,6 +50,7 @@ class DashboardViewModel @Inject constructor(
     init {
         loadUserName()
         loadDashboard()
+        observeBodyMetrics()
     }
 
     private fun loadUserName() {
@@ -129,38 +133,58 @@ class DashboardViewModel @Inject constructor(
                     sessionRepository.getExercisesBySessionOnce(it.id)
                 } ?: emptyList()
 
-                // Body metrics
-                val latest = bodyTrackerRepository.getLatest()
-                val first = bodyTrackerRepository.getFirst()
-                val currentWeight = latest?.weight
-                val weightChange = if (latest != null && first != null && latest.id != first.id)
-                    latest.weight - first.weight else null
-                val waistChange = if (latest?.waist != null && first?.waist != null && latest.id != first.id)
-                    latest.waist - first.waist else null
-                val bodyFat = if (latest != null && latest.waist != null && latest.neck != null)
-                    BodyMetricsCalculator.bodyFatNavy(latest.waist, latest.neck, latest.height) else null
-                val firstBodyFat = if (first != null && first.waist != null && first.neck != null)
-                    BodyMetricsCalculator.bodyFatNavy(first.waist!!, first.neck!!, first.height) else null
-                val bodyFatChange = if (bodyFat != null && firstBodyFat != null && latest?.id != first?.id)
-                    bodyFat - firstBodyFat else null
-
                 _state.update { it.copy(
                     nextSession = nextSession,
                     nextSessionExercises = nextSessionExercises,
                     lastSession = lastSession,
                     lastDaySessionCount = lastDaySessions.size,
                     lastSessionTonnage = lastDayTonnage,
-                    currentWeight = currentWeight,
-                    weightChange = weightChange,
-                    waistChange = waistChange,
-                    bodyFatPercent = bodyFat,
-                    bodyFatChange = bodyFatChange,
                     totalTonnage = totalTonnage,
                     workoutCount = workoutCount,
                     avgRir = avgRir,
                     avgVolume = avgVolume
                 ) }
             }
+        }
+    }
+
+    private fun observeBodyMetrics() {
+        viewModelScope.launch {
+            bodyTrackerRepository.getLatestFlow().collect {
+                refreshBodyMetrics()
+            }
+        }
+    }
+
+    private suspend fun refreshBodyMetrics() {
+        val latest = bodyTrackerRepository.getLatest()
+        val first = bodyTrackerRepository.getFirst()
+        val currentWeight = latest?.weight
+        val weightChange = if (latest != null && first != null && latest.id != first.id)
+            latest.weight - first.weight else null
+        val waistChange = if (latest?.waist != null && first?.waist != null && latest.id != first.id)
+            latest.waist - first.waist else null
+        val bodyFat = if (latest != null && latest.waist != null && latest.neck != null)
+            BodyMetricsCalculator.bodyFatNavy(latest.waist, latest.neck, latest.height) else null
+        val firstBodyFat = if (first != null && first.waist != null && first.neck != null)
+            BodyMetricsCalculator.bodyFatNavy(first.waist!!, first.neck!!, first.height) else null
+        val bodyFatChange = if (bodyFat != null && firstBodyFat != null && latest?.id != first?.id)
+            bodyFat - firstBodyFat else null
+        val showBanner = latest == null || latest.weight == 0f || latest.height == 0f
+        _state.update { it.copy(
+            currentWeight = currentWeight,
+            weightChange = weightChange,
+            waistChange = waistChange,
+            bodyFatPercent = bodyFat,
+            bodyFatChange = bodyFatChange,
+            showBodyMeasurementBanner = showBanner,
+            existingMeasurement = if (showBanner) latest else null
+        ) }
+    }
+
+    fun insertBodyMeasurement(measurement: BodyMeasurement) {
+        viewModelScope.launch {
+            bodyTrackerRepository.insert(measurement)
         }
     }
 

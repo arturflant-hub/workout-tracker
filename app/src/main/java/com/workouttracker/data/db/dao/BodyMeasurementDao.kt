@@ -15,6 +15,9 @@ interface BodyMeasurementDao {
     @Query("SELECT * FROM body_measurements ORDER BY date DESC LIMIT 1")
     suspend fun getLatest(): BodyMeasurement?
 
+    @Query("SELECT * FROM body_measurements ORDER BY date DESC LIMIT 1")
+    fun getLatestFlow(): Flow<BodyMeasurement?>
+
     @Query("SELECT * FROM body_measurements ORDER BY date ASC LIMIT 1")
     suspend fun getFirst(): BodyMeasurement?
 
