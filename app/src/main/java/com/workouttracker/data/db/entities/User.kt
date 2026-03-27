@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class User(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val units: String = "kg" // "kg" or "lbs"
+    val units: String = "kg", // "kg" or "lbs"
+    val gender: String = "" // "male" or "female"
 )

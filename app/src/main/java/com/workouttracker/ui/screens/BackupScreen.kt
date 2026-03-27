@@ -142,7 +142,11 @@ fun BackupScreen(
                                 )
                             }
                         }
-                        if (!state.isSignedIn) {
+                        if (state.isSignedIn) {
+                            TextButton(onClick = { viewModel.switchAccount() }) {
+                                Text("Сменить", color = ColorPrimary)
+                            }
+                        } else {
                             TextButton(onClick = {
                                 signInLauncher.launch(viewModel.getSignInIntent())
                             }) {

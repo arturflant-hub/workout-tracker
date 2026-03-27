@@ -59,6 +59,10 @@ class GoogleDriveBackupManager @Inject constructor(
 
     fun getSignInIntent(): Intent = getGoogleSignInClient().signInIntent
 
+    fun signOut() {
+        getGoogleSignInClient().signOut()
+    }
+
     fun getSignedInAccount(): GoogleSignInAccount? =
         GoogleSignIn.getLastSignedInAccount(context)
 
@@ -122,7 +126,7 @@ class GoogleDriveBackupManager @Inject constructor(
                     put("backupDate", sdf.format(Date()))
                     put("appVersionName", BuildConfig.VERSION_NAME)
                     put("appVersionCode", BuildConfig.VERSION_CODE)
-                    put("dbVersion", 3)
+                    put("dbVersion", 4)
                 }
                 File(tempDir, METADATA_FILE).writeText(metadata.toString(2))
 

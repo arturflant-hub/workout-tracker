@@ -1,15 +1,19 @@
 package com.workouttracker.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.*
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import com.workouttracker.data.db.dao.UserDao
 import com.workouttracker.ui.screens.*
 import com.workouttracker.ui.theme.*
 
@@ -56,17 +60,33 @@ sealed class Screen(val route: String) {
         fun createRoute(sessionId: Long) = "workout_detail/$sessionId"
     }
     object Backup : Screen("backup")
+    object Onboarding : Screen("onboarding")
 }
 
 @Composable
-fun WorkoutNavGraph(navController: NavHostController) {
+fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStack?.destination
+
+    // Check if user exists for conditional start
+    var startRoute by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val user = userDao.getUserOnce()
+        startRoute = if (user == null) Screen.Onboarding.route else BottomNavScreen.Dashboard.route
+    }
+
+    if (startRoute == null) {
+        // Loading state while checking user
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = ColorPrimary)
+        }
+        return
+    }
 
     val topLevelRoutes = bottomNavItems.map { it.route }
     val showBottomBar = currentDestination?.route?.let { route ->
         topLevelRoutes.any { route == it } || route == "workout_tab"
-    } ?: true
+    } ?: (startRoute != Screen.Onboarding.route)
 
     Scaffold(
         containerColor = ColorBackground,
@@ -111,9 +131,20 @@ fun WorkoutNavGraph(navController: NavHostController) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = BottomNavScreen.Dashboard.route,
+            startDestination = startRoute!!,
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Onboarding
+            composable(Screen.Onboarding.route) {
+                OnboardingScreen(
+                    onComplete = {
+                        navController.navigate(BottomNavScreen.Dashboard.route) {
+                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             // Bottom nav destinations
             composable(BottomNavScreen.Dashboard.route) {
                 DashboardScreen(navController = navController)

@@ -18,6 +18,9 @@ interface BodyMeasurementDao {
     @Query("SELECT * FROM body_measurements ORDER BY date ASC LIMIT 1")
     suspend fun getFirst(): BodyMeasurement?
 
+    @Update
+    suspend fun update(measurement: BodyMeasurement)
+
     @Delete
     suspend fun delete(measurement: BodyMeasurement)
 

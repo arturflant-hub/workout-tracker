@@ -7,40 +7,43 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.workouttracker.ui.theme.*
 import com.workouttracker.ui.viewmodel.DevToolsViewModel
+import com.workouttracker.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     navController: NavController,
-    devToolsViewModel: DevToolsViewModel = hiltViewModel()
+    devToolsViewModel: DevToolsViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE) }
     var restDuration by remember { mutableStateOf(prefs.getInt("rest_timer_duration", 90)) }
     var showTimerDialog by remember { mutableStateOf(false) }
     var showDevMenu by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
     var tapCount by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     var tapResetJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val profileState by settingsViewModel.profile.collectAsState()
 
     Column(
         modifier = Modifier
@@ -57,6 +60,31 @@ fun SettingsScreen(
             fontWeight = FontWeight.Bold,
             color = ColorOnBackground
         )
+
+        Spacer(Modifier.height(8.dp))
+
+        // Profile section
+        Text(
+            "Профиль",
+            style = MaterialTheme.typography.labelMedium,
+            color = ColorOnSurface
+        )
+
+        profileState.user?.let { user ->
+            val genderText = when (user.gender) {
+                "male" -> "Мужской"
+                "female" -> "Женский"
+                else -> ""
+            }
+            val ageText = profileState.age?.let { "${it} лет" } ?: ""
+            val subtitle = listOf(genderText, ageText).filter { it.isNotEmpty() }.joinToString(", ")
+
+            SettingsItem(
+                title = user.name.ifBlank { "Не указано" },
+                subtitle = subtitle.ifBlank { "Нажмите для редактирования" },
+                onClick = { showProfileDialog = true }
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -179,6 +207,19 @@ fun SettingsScreen(
         DevToolsDialog(
             viewModel = devToolsViewModel,
             onDismiss = { showDevMenu = false }
+        )
+    }
+
+    if (showProfileDialog) {
+        ProfileEditDialog(
+            currentName = profileState.user?.name ?: "",
+            currentGender = profileState.user?.gender ?: "",
+            currentAge = profileState.age?.toString() ?: "",
+            onSave = { name, gender, age ->
+                settingsViewModel.saveProfile(name, gender, age.toIntOrNull())
+                showProfileDialog = false
+            },
+            onDismiss = { showProfileDialog = false }
         )
     }
 }
@@ -441,6 +482,115 @@ fun RestTimerDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Закрыть", color = ColorOnSurface)
+            }
+        }
+    )
+}
+
+@Composable
+private fun ProfileEditDialog(
+    currentName: String,
+    currentGender: String,
+    currentAge: String,
+    onSave: (String, String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(currentName) }
+    var gender by remember { mutableStateOf(currentGender) }
+    var age by remember { mutableStateOf(currentAge) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ColorSurface,
+        title = {
+            Text("Редактировать профиль", color = ColorOnBackground, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Имя") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ColorPrimary,
+                        unfocusedBorderColor = ColorSurfaceVariant,
+                        focusedTextColor = ColorOnBackground,
+                        unfocusedTextColor = ColorOnBackground,
+                        focusedLabelColor = ColorPrimary,
+                        unfocusedLabelColor = ColorOnSurface,
+                        cursorColor = ColorPrimary
+                    )
+                )
+
+                Text("Пол", style = MaterialTheme.typography.labelMedium, color = ColorOnSurface)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    listOf("male" to "Мужской", "female" to "Женский").forEach { (value, label) ->
+                        val selected = gender == value
+                        OutlinedButton(
+                            onClick = { gender = value },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                if (selected) 2.dp else 1.dp,
+                                if (selected) ColorPrimary else ColorSurfaceVariant
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (selected) ColorPrimary.copy(alpha = 0.15f) else ColorSurface
+                            )
+                        ) {
+                            Icon(
+                                if (value == "male") Icons.Default.Male else Icons.Default.Female,
+                                contentDescription = null,
+                                tint = if (selected) ColorPrimary else ColorOnSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                label,
+                                color = if (selected) ColorPrimary else ColorOnSurface,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = age,
+                    onValueChange = { age = it.filter { c -> c.isDigit() } },
+                    label = { Text("Возраст") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ColorPrimary,
+                        unfocusedBorderColor = ColorSurfaceVariant,
+                        focusedTextColor = ColorOnBackground,
+                        unfocusedTextColor = ColorOnBackground,
+                        focusedLabelColor = ColorPrimary,
+                        unfocusedLabelColor = ColorOnSurface,
+                        cursorColor = ColorPrimary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(name, gender, age) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Сохранить", color = ColorPrimary, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена", color = ColorOnSurface)
             }
         }
     )

@@ -170,6 +170,7 @@ States: active session → today planned → nearest upcoming → empty.
 
 | Дата | Commit | Что сделано | Файлы |
 |------|--------|-------------|-------|
+| 2026-03-27 | — | feat: онбординг (3 шага: имя/пол/возраст), восстановление из бэкапа на онбординге, приветствие по времени суток на Dashboard, профиль в Настройках с редактированием, миграция БД v3→v4 (gender) | OnboardingScreen.kt, OnboardingViewModel.kt, SettingsViewModel.kt, NavGraph.kt, MainActivity.kt, DashboardScreen.kt, DashboardViewModel.kt, SettingsScreen.kt, User.kt, AppDatabase.kt, AppModule.kt, BodyMeasurementDao.kt |
 | 2026-03-27 | — | feat: выбор из нескольких бэкапов при восстановлении, удаление бэкапов с Google Drive, фикс бэкапа WAL/SHM файлов (антропометрия), инструкция Google API в CLAUDE.md | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, CLAUDE.md |
 | 2026-03-27 | — | feat: резервное копирование в Google Drive — создание и восстановление бэкапа (ZIP с БД + SharedPrefs + метаданные), Google Sign-In, новый экран BackupScreen | GoogleDriveBackupManager.kt, BackupViewModel.kt, BackupScreen.kt, NavGraph.kt, SettingsScreen.kt, build.gradle.kts, libs.versions.toml, AndroidManifest.xml, proguard-rules.pro |
 | 2026-03-26 | — | feat: тултипы по тапу на точках/столбцах графиков + подписи оси Y (значения + единицы) на всех 5 графиках Статистики | StatisticsScreen.kt |
