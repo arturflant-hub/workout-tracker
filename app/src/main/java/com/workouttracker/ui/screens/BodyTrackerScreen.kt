@@ -34,12 +34,11 @@ import java.util.*
 
 @Composable
 fun BodyTrackerScreen(
+    navController: androidx.navigation.NavController,
     viewModel: BodyTrackerViewModel = hiltViewModel()
 ) {
     val measurements by viewModel.measurements.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
-    var selectedMeasurement by remember { mutableStateOf<BodyMeasurementUi?>(null) }
-    var editingMeasurement by remember { mutableStateOf<BodyMeasurement?>(null) }
 
     val sdf = remember { SimpleDateFormat("d MMM yyyy", Locale("ru")) }
 
@@ -96,7 +95,11 @@ fun BodyTrackerScreen(
                 BodyMeasurementCard(
                     item = item,
                     sdf = sdf,
-                    onClick = { selectedMeasurement = item },
+                    onClick = {
+                        navController.navigate(
+                            com.workouttracker.ui.navigation.Screen.MeasurementDetail.createRoute(item.measurement.id)
+                        )
+                    },
                     onDelete = { viewModel.delete(item.measurement) }
                 )
             }
@@ -124,30 +127,6 @@ fun BodyTrackerScreen(
         )
     }
 
-    selectedMeasurement?.let { sel ->
-        MeasurementDetailDialog(
-            item = sel,
-            sdf = sdf,
-            weightChange = viewModel.weightChangeFromStart(sel.measurement),
-            waistChange = viewModel.waistChangeFromStart(sel.measurement),
-            onDismiss = { selectedMeasurement = null },
-            onEdit = {
-                editingMeasurement = sel.measurement
-                selectedMeasurement = null
-            }
-        )
-    }
-
-    editingMeasurement?.let { existing ->
-        AddMeasurementDialog(
-            onDismiss = { editingMeasurement = null },
-            onConfirm = { measurement ->
-                viewModel.update(measurement)
-                editingMeasurement = null
-            },
-            existing = existing
-        )
-    }
 }
 
 @Composable
@@ -169,10 +148,9 @@ fun BodyMeasurementCard(
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     sdf.format(Date(m.date)),
                     style = MaterialTheme.typography.titleSmall,
@@ -200,68 +178,24 @@ fun BodyMeasurementCard(
                     )
                 }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, "Удалить", tint = ColorError)
+            Spacer(Modifier.width(12.dp))
+            FilledTonalIconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = ColorError.copy(alpha = 0.12f),
+                    contentColor = ColorError
+                )
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Удалить",
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
-}
-
-@Composable
-fun MeasurementDetailDialog(
-    item: BodyMeasurementUi,
-    sdf: SimpleDateFormat,
-    weightChange: Float?,
-    waistChange: Float?,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit = {}
-) {
-    val m = item.measurement
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = ColorSurface,
-        title = {
-            Text(
-                sdf.format(Date(m.date)),
-                color = ColorOnBackground,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                DetailRow("Вес", "%.1f кг".format(m.weight))
-                DetailRow("Рост", "%.0f см".format(m.height))
-                m.waist?.let { DetailRow("Талия", "%.1f см".format(it)) }
-                m.neck?.let { DetailRow("Шея", "%.1f см".format(it)) }
-                m.chest?.let { DetailRow("Грудь", "%.1f см".format(it)) }
-                m.hips?.let { DetailRow("Бёдра", "%.1f см".format(it)) }
-                m.thigh?.let { DetailRow("Бедро", "%.1f см".format(it)) }
-                m.arm?.let { DetailRow("Рука", "%.1f см".format(it)) }
-                m.age?.let { DetailRow("Возраст", "$it лет") }
-                HorizontalDivider(color = ColorSurfaceVariant)
-                item.bodyFatNavy?.let { DetailRow("% жира (Navy)", "%.1f%%".format(it)) }
-                item.waistToHeight?.let { DetailRow("Талия/Рост", "%.2f".format(it)) }
-                weightChange?.let {
-                    val sign = if (it >= 0) "+" else ""
-                    DetailRow("Δ вес (от старта)", "$sign%.1f кг".format(it))
-                }
-                waistChange?.let {
-                    val sign = if (it >= 0) "+" else ""
-                    DetailRow("Δ талия (от старта)", "$sign%.1f см".format(it))
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Закрыть", color = ColorPrimary)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onEdit) {
-                Text("Редактировать", color = ColorOnSurface)
-            }
-        }
-    )
 }
 
 @Composable

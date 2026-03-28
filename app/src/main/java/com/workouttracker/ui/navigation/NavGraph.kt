@@ -66,6 +66,9 @@ sealed class Screen(val route: String) {
         fun createRoute(sessionId: Long) = "workout_detail/$sessionId"
     }
     object Backup : Screen("backup")
+    object MeasurementDetail : Screen("measurement_detail/{measurementId}") {
+        fun createRoute(measurementId: Long) = "measurement_detail/$measurementId"
+    }
     object Onboarding : Screen("onboarding")
     object FeatureOnboarding : Screen("feature_onboarding")
 }
@@ -177,7 +180,7 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
             }
 
             composable(BottomNavScreen.Body.route) {
-                BodyTrackerScreen()
+                BodyTrackerScreen(navController = navController)
             }
 
             composable(BottomNavScreen.Statistics.route) {
@@ -271,6 +274,14 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
             ) { backStack ->
                 val sessionId = backStack.arguments?.getLong("sessionId") ?: return@composable
                 WorkoutDetailScreen(sessionId = sessionId, navController = navController)
+            }
+
+            composable(
+                route = Screen.MeasurementDetail.route,
+                arguments = listOf(navArgument("measurementId") { type = NavType.LongType })
+            ) { backStack ->
+                val measurementId = backStack.arguments?.getLong("measurementId") ?: return@composable
+                MeasurementDetailScreen(measurementId = measurementId, navController = navController)
             }
         }
         TopToastHost(state = topToastState)

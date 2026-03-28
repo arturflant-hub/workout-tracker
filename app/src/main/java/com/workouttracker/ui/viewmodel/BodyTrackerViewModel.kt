@@ -21,8 +21,14 @@ class BodyTrackerViewModel @Inject constructor(
     private val repository: BodyTrackerRepository
 ) : ViewModel() {
 
+    var isInitialLoadDone: Boolean = false
+        private set
+
     val measurements: StateFlow<List<BodyMeasurementUi>> = repository.getAll()
-        .map { list -> list.map { m -> BodyMeasurementUi(m, calcBodyFat(m), calcWaistToHeight(m)) } }
+        .map { list ->
+            isInitialLoadDone = true
+            list.map { m -> BodyMeasurementUi(m, calcBodyFat(m), calcWaistToHeight(m)) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _firstMeasurement = MutableStateFlow<BodyMeasurement?>(null)
