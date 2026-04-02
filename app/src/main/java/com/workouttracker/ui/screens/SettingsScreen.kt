@@ -1,8 +1,14 @@
 package com.workouttracker.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +57,22 @@ fun SettingsScreen(
     val prefs = remember { context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE) }
     var restDuration by remember { mutableStateOf(prefs.getInt("rest_timer_duration", 90)) }
     var showTimerDialog by remember { mutableStateOf(false) }
+
+    // Request notification permission when opening rest timer settings
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* user's choice */ }
+
+    fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     var showDevMenu by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var tapCount by remember { mutableStateOf(0) }
@@ -130,7 +152,10 @@ fun SettingsScreen(
         SettingsItem(
             title = "Время отдыха",
             subtitle = "Сейчас: ${restDuration} сек",
-            onClick = { showTimerDialog = true }
+            onClick = {
+                ensureNotificationPermission()
+                showTimerDialog = true
+            }
         )
 
         Spacer(Modifier.height(8.dp))

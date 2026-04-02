@@ -1,11 +1,14 @@
 package com.workouttracker.ui.viewmodel
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.workouttracker.data.db.entities.SessionStatus
@@ -315,6 +318,7 @@ class ActiveWorkoutViewModel @Inject constructor(
             }
             _uiState.update { it.copy(restTimerRunning = false, restTimerSeconds = 0) }
             vibrate()
+            showRestCompleteNotification()
         }
     }
 
@@ -340,27 +344,65 @@ class ActiveWorkoutViewModel @Inject constructor(
         }
     }
 
-    // ---------- Vibration ----------
+    // ---------- Vibration + Notification ----------
+
+    companion object {
+        private const val CHANNEL_ID = "rest_timer_channel"
+        private const val NOTIFICATION_ID = 1001
+    }
 
     private fun vibrate() {
         try {
+            // Strong vibration pattern: vibrate-pause-vibrate-pause-vibrate
+            val pattern = longArrayOf(0, 400, 200, 400, 200, 400)
+            val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vm = context.getSystemService(VibratorManager::class.java)
                 vm?.defaultVibrator?.vibrate(
-                    VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE)
+                    VibrationEffect.createWaveform(pattern, amplitudes, -1)
                 )
             } else {
                 @Suppress("DEPRECATION")
                 val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     vibrator?.vibrate(
-                        VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE)
+                        VibrationEffect.createWaveform(pattern, amplitudes, -1)
                     )
                 } else {
                     @Suppress("DEPRECATION")
-                    vibrator?.vibrate(500)
+                    vibrator?.vibrate(pattern, -1)
                 }
             }
+        } catch (_: Exception) {}
+    }
+
+    private fun showRestCompleteNotification() {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Таймер отдыха",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Уведомления об окончании отдыха"
+                    enableVibration(false) // vibration handled separately
+                }
+                nm.createNotificationChannel(channel)
+            }
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Отдых завершён")
+                .setContentText("Время приступить к следующему подходу!")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
+
+            nm.notify(NOTIFICATION_ID, notification)
         } catch (_: Exception) {}
     }
 

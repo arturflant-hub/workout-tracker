@@ -13,7 +13,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.*
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.workouttracker.data.db.dao.UserDao
 import com.workouttracker.ui.components.LocalTopToastState
 import com.workouttracker.ui.components.TopToastHost
@@ -99,6 +105,31 @@ fun WorkoutNavGraph(navController: NavHostController, userDao: UserDao) {
     val showBottomBar = currentDestination?.route?.let { route ->
         topLevelRoutes.any { route == it } || route == "workout_tab"
     } ?: (startRoute != Screen.Onboarding.route)
+
+    // Notification permission request (Android 13+) — after onboarding
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result ignored — user's choice */ }
+
+    val navContext = LocalContext.current
+    val currentRoute = currentDestination?.route
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == BottomNavScreen.Dashboard.route &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+            val prefs = navContext.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+            val asked = prefs.getBoolean("notification_permission_asked", false)
+            if (!asked) {
+                val granted = ContextCompat.checkSelfPermission(
+                    navContext, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalTopToastState provides topToastState) {
     Scaffold(
